@@ -1369,67 +1369,22 @@ ui <- dashboardPage(
                 )
               ),
               fluidRow(
-                box(width = 12, title = "Time Selection",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    fluidRow(
-                      column(width = 6,
-                             sliderInput("grace_year", "Select Year:",
-                                       min = 2002, max = 2024, value = 2024,
-                                       step = 1, sep = "")
-                      ),
-                      column(width = 6,
-                             sliderInput("grace_month", "Select Month:",
-                                       min = 1, max = 12, value = 1,
-                                       step = 1)
-                      )
-                    )
-                )
-              ),
-              fluidRow(
-                box(width = 12, title = "Spatial Distribution",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    plotlyOutput("grace_map", height = "500px")
-                )
+                box(width = 12, title = "GRACE Terrestrial Water Storage Map",
+                    uiOutput("grace_map_placeholder"),
+                    plotlyOutput("grace_map", height = "600px"))
               ),
               fluidRow(
                 box(width = 6, title = "Time Series Analysis",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    plotlyOutput("grace_timeseries", height = "400px")
-                ),
-                box(width = 6, title = "Uncertainty Analysis",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    plotlyOutput("grace_uncertainty", height = "400px")
-                )
-              ),
-              fluidRow(
+                    uiOutput("grace_timeseries_placeholder"),
+                    plotlyOutput("grace_timeseries", height = "400px")),
                 box(width = 6, title = "Seasonal Analysis",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    plotlyOutput("grace_seasonal", height = "400px")
-                ),
-                box(width = 6, title = "Trend Analysis",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    plotlyOutput("grace_trend", height = "400px")
-                )
+                    uiOutput("grace_seasonal_placeholder"),
+                    plotlyOutput("grace_seasonal", height = "400px"))
               ),
               fluidRow(
-                box(width = 12, title = "Anomaly Analysis",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    plotlyOutput("grace_anomaly", height = "400px")
-                )
-              ),
-              fluidRow(
-                box(width = 12, title = "Statistical Summary",
-                    status = "primary",
-                    solidHeader = TRUE,
-                    dataTableOutput("grace_stats")
-                )
+                box(width = 12, title = "Uncertainty Analysis",
+                    uiOutput("grace_uncertainty_placeholder"),
+                    plotlyOutput("grace_uncertainty", height = "400px"))
               )
       ),
       
@@ -2375,7 +2330,7 @@ server <- function(input, output, session) {
   })
   
   # GRACE Map
-  output$grace_map <- renderPlotly({
+  output$grace_map <- renderImage({
     data <- grace_data()
     if (is.null(data)) return(NULL)
     
@@ -2383,54 +2338,28 @@ server <- function(input, output, session) {
     selected_year <- input$grace_year
     selected_month <- input$grace_month
     
-    # Find the closest date to the selected year and month
-    target_date <- as.Date(paste(selected_year, selected_month, "15", sep = "-"))
-    date_index <- which.min(abs(data$dates - target_date))
+    # Find the index for the selected date
+    date_index <- which(format(data$dates, "%Y-%m") == paste0(selected_year, "-", selected_month))
+    if (length(date_index) == 0) return(NULL)
     
-    # Create spatial data frame
-    spatial_df <- expand.grid(
-      lon = data$lon,
-      lat = data$lat
-    )
+    # Create a temporary file for the plot
+    outfile <- tempfile(fileext = '.png')
     
-    # Get data for selected date
-    date_data <- data$tws[,,date_index]
-    spatial_df$value <- as.vector(date_data)
+    # Generate the plot
+    png(outfile, width = 800, height = 600)
+    plot(data$tws[,,date_index], main = paste("GRACE TWS -", selected_year, "-", selected_month))
+    dev.off()
     
-    # Remove NA values
-    spatial_df <- spatial_df[!is.na(spatial_df$value),]
-    
-    # Create the plot
-    p <- ggplot() +
-      geom_tile(data = spatial_df, aes(x = lon, y = lat, fill = value)) +
-      scale_fill_viridis_c(
-        option = "viridis",
-        na.value = "transparent",
-        name = "TWS (cm)"
-      ) +
-      labs(
-        x = "Longitude",
-        y = "Latitude",
-        title = paste("Terrestrial Water Storage -", format(data$dates[date_index], "%B %Y"))
-      ) +
-      theme_minimal() +
-      theme(
-        plot.title = element_text(hjust = 0.5),
-        legend.position = "right",
-        axis.title = element_text(size = 12),
-        axis.text = element_text(size = 10)
-      )
-    
-    ggplotly(p) %>%
-      layout(
-        autosize = TRUE,
-        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4),
-        showlegend = TRUE
-      )
-  })
+    # Return the image
+    list(src = outfile,
+         contentType = 'image/png',
+         width = 800,
+         height = 600,
+         alt = "GRACE TWS Map")
+  }, deleteFile = TRUE)
   
   # GRACE Time Series
-  output$grace_timeseries <- renderPlotly({
+  output$grace_time_series <- renderImage({
     data <- grace_data()
     if (is.null(data)) return(NULL)
     
@@ -2439,135 +2368,112 @@ server <- function(input, output, session) {
     
     # Calculate spatial mean for each time step
     tws_means <- apply(data$tws, 3, mean, na.rm = TRUE)
-    uncertainty_means <- apply(data$uncertainty, 3, mean, na.rm = TRUE)
     
     # Create time series data frame
     ts_df <- data.frame(
       Date = data$dates,
       TWS = tws_means,
-      Uncertainty = uncertainty_means,
       Year = format(data$dates, "%Y")
     )
     
     # Filter for selected year
     ts_df <- ts_df[ts_df$Year == selected_year,]
     
-    # Calculate trend line
-    trend_line <- lm(TWS ~ as.numeric(Date), data = ts_df)
-    ts_df$Trend <- predict(trend_line)
+    # Create a temporary file for the plot
+    outfile <- tempfile(fileext = '.png')
     
-    # Calculate seasonal decomposition
-    ts_data <- ts(ts_df$TWS, frequency = 12)
-    decomp <- stl(ts_data, s.window = "periodic")
-    ts_df$Seasonal <- as.vector(decomp$time.series[,"seasonal"])
-    ts_df$Trend_Decomp <- as.vector(decomp$time.series[,"trend"])
+    # Generate the plot
+    png(outfile, width = 800, height = 400)
+    plot(ts_df$Date, ts_df$TWS, type = 'l', 
+         main = paste("GRACE TWS Time Series -", selected_year),
+         xlab = "Date", ylab = "TWS (cm)")
+    dev.off()
     
-    plot_ly(ts_df) %>%
-      add_trace(x = ~Date, y = ~TWS, name = 'TWS', type = 'scatter', mode = 'lines') %>%
-      add_trace(x = ~Date, y = ~Uncertainty, name = 'Uncertainty', type = 'scatter', mode = 'lines',
-                line = list(dash = 'dash')) %>%
-      add_trace(x = ~Date, y = ~Trend, name = 'Trend', type = 'scatter', mode = 'lines',
-                line = list(dash = 'dot')) %>%
-      layout(
-        title = paste("GRACE TWS Time Series -", selected_year),
-        xaxis = list(title = "Date"),
-        yaxis = list(title = "TWS (cm)"),
-        legend = list(x = 0.1, y = 0.9)
-      )
-  })
+    # Return the image
+    list(src = outfile,
+         contentType = 'image/png',
+         width = 800,
+         height = 400,
+         alt = "GRACE Time Series")
+  }, deleteFile = TRUE)
   
   # GRACE Seasonal Analysis
-  output$grace_seasonal <- renderPlotly({
+  output$grace_seasonal <- renderImage({
     data <- grace_data()
     if (is.null(data)) return(NULL)
-    
-    # Get the selected year
-    selected_year <- input$grace_year
     
     # Calculate spatial mean for each time step
     tws_means <- apply(data$tws, 3, mean, na.rm = TRUE)
     
-    # Create monthly data frame
-    monthly_df <- data.frame(
+    # Create time series data frame
+    ts_df <- data.frame(
       Date = data$dates,
-      Month = format(data$dates, "%B"),
-      Year = format(data$dates, "%Y"),
-      TWS = tws_means
+      TWS = tws_means,
+      Month = format(data$dates, "%B")
     )
     
-    # Filter for selected year
-    monthly_df <- monthly_df[monthly_df$Year == selected_year,]
+    # Create a temporary file for the plot
+    outfile <- tempfile(fileext = '.png')
     
-    # Calculate monthly climatology
-    monthly_clim <- monthly_df %>%
-      group_by(Month) %>%
-      summarise(
-        Mean = mean(TWS, na.rm = TRUE),
-        SD = sd(TWS, na.rm = TRUE)
-      )
+    # Generate the plot
+    png(outfile, width = 800, height = 400)
+    boxplot(TWS ~ Month, data = ts_df,
+            main = "Seasonal Analysis of GRACE TWS",
+            xlab = "Month", ylab = "TWS (cm)")
+    dev.off()
     
-    # Create seasonal plot
-    plot_ly(monthly_clim) %>%
-      add_trace(x = ~Month, y = ~Mean, type = 'scatter', mode = 'lines+markers',
-                name = 'Monthly Mean') %>%
-      add_ribbons(x = ~Month,
-                  ymin = ~Mean - SD,
-                  ymax = ~Mean + SD,
-                  name = 'Standard Deviation',
-                  line = list(color = 'rgba(0,100,80,0.2)'),
-                  fillcolor = 'rgba(0,100,80,0.2)') %>%
-      layout(
-        title = paste("Monthly Climatology of TWS -", selected_year),
-        xaxis = list(title = "Month"),
-        yaxis = list(title = "TWS (cm)"),
-        showlegend = TRUE
-      )
-  })
+    # Return the image
+    list(src = outfile,
+         contentType = 'image/png',
+         width = 800,
+         height = 400,
+         alt = "GRACE Seasonal Analysis")
+  }, deleteFile = TRUE)
   
   # GRACE Anomaly Analysis
-  output$grace_anomaly <- renderPlotly({
+  output$grace_anomaly <- renderImage({
     data <- grace_data()
     if (is.null(data)) return(NULL)
-    
-    # Get the selected year
-    selected_year <- input$grace_year
     
     # Calculate spatial mean for each time step
     tws_means <- apply(data$tws, 3, mean, na.rm = TRUE)
     
-    # Create monthly data frame
-    monthly_df <- data.frame(
+    # Create time series data frame
+    ts_df <- data.frame(
       Date = data$dates,
-      Month = format(data$dates, "%B"),
-      Year = format(data$dates, "%Y"),
       TWS = tws_means
     )
     
-    # Filter for selected year
-    monthly_df <- monthly_df[monthly_df$Year == selected_year,]
-    
     # Calculate monthly climatology
-    monthly_clim <- monthly_df %>%
+    monthly_clim <- ts_df %>%
+      mutate(Month = format(Date, "%B")) %>%
       group_by(Month) %>%
       summarise(Climatology = mean(TWS, na.rm = TRUE))
     
     # Calculate anomalies
-    monthly_df <- monthly_df %>%
+    ts_df <- ts_df %>%
+      mutate(Month = format(Date, "%B")) %>%
       left_join(monthly_clim, by = "Month") %>%
       mutate(Anomaly = TWS - Climatology)
     
-    # Create anomaly plot
-    plot_ly(monthly_df) %>%
-      add_trace(x = ~Date, y = ~Anomaly, type = 'scatter', mode = 'lines',
-                name = 'TWS Anomaly') %>%
-      add_hline(y = 0, line = list(dash = "dash"), name = "Climatology") %>%
-      layout(
-        title = paste("TWS Anomalies from Monthly Climatology -", selected_year),
-        xaxis = list(title = "Date"),
-        yaxis = list(title = "Anomaly (cm)"),
-        showlegend = TRUE
-      )
-  })
+    # Create a temporary file for the plot
+    outfile <- tempfile(fileext = '.png')
+    
+    # Generate the plot
+    png(outfile, width = 800, height = 400)
+    plot(ts_df$Date, ts_df$Anomaly, type = 'l',
+         main = "GRACE TWS Anomalies",
+         xlab = "Date", ylab = "Anomaly (cm)")
+    abline(h = 0, lty = 2)
+    dev.off()
+    
+    # Return the image
+    list(src = outfile,
+         contentType = 'image/png',
+         width = 800,
+         height = 400,
+         alt = "GRACE Anomaly Analysis")
+  }, deleteFile = TRUE)
   
   # GRACE Statistics Table
   output$grace_stats <- renderDataTable({
@@ -4019,6 +3925,90 @@ server <- function(input, output, session) {
         yaxis = list(title = "TWS (cm)"),
         showlegend = TRUE
       )
+  })
+  
+  # GRACE Soil Moisture Profile
+  output$grace_soil_moisture <- renderPlotly({
+    data <- grace_data()
+    if (is.null(data)) return(NULL)
+    
+    # Get the selected year
+    selected_year <- input$grace_year
+    
+    # Calculate spatial mean for each time step
+    tws_means <- apply(data$tws, 3, mean, na.rm = TRUE)
+    
+    # Create time series data frame
+    ts_df <- data.frame(
+      Date = data$dates,
+      TWS = tws_means,
+      Year = format(data$dates, "%Y")
+    )
+    
+    # Filter for selected year
+    ts_df <- ts_df[ts_df$Year == selected_year,]
+    
+    # Calculate monthly climatology
+    monthly_clim <- ts_df %>%
+      mutate(Month = format(Date, "%B")) %>%
+      group_by(Month) %>%
+      summarise(Climatology = mean(TWS, na.rm = TRUE))
+    
+    # Calculate anomalies (soil moisture variations)
+    ts_df <- ts_df %>%
+      mutate(Month = format(Date, "%B")) %>%
+      left_join(monthly_clim, by = "Month") %>%
+      mutate(Soil_Moisture = TWS - Climatology)
+    
+    # Create soil moisture profile plot
+    plot_ly(ts_df) %>%
+      add_trace(x = ~Date, y = ~Soil_Moisture, type = 'scatter', mode = 'lines',
+                name = 'Soil Moisture', line = list(color = 'green')) %>%
+      add_hline(y = 0, line = list(dash = "dash"), name = "Climatology") %>%
+      layout(
+        title = paste("Soil Moisture Profile -", selected_year),
+        xaxis = list(title = "Date"),
+        yaxis = list(title = "Soil Moisture Anomaly (cm)"),
+        showlegend = TRUE
+      )
+  })
+  
+  # Add these new outputs in the server section
+  output$grace_map_placeholder <- renderUI({
+    if (is.null(grace_data())) {
+      div(class = "alert alert-warning",
+          h4("Data Not Available"),
+          p("GRACE data is currently not available. Please check back later or contact the administrator."),
+          p("Expected data format: NetCDF files containing terrestrial water storage measurements.")
+      )
+    }
+  })
+  
+  output$grace_timeseries_placeholder <- renderUI({
+    if (is.null(grace_data())) {
+      div(class = "alert alert-warning",
+          h4("Data Not Available"),
+          p("Time series data is currently not available. Please check back later or contact the administrator.")
+      )
+    }
+  })
+  
+  output$grace_seasonal_placeholder <- renderUI({
+    if (is.null(grace_data())) {
+      div(class = "alert alert-warning",
+          h4("Data Not Available"),
+          p("Seasonal analysis data is currently not available. Please check back later or contact the administrator.")
+      )
+    }
+  })
+  
+  output$grace_uncertainty_placeholder <- renderUI({
+    if (is.null(grace_data())) {
+      div(class = "alert alert-warning",
+          h4("Data Not Available"),
+          p("Uncertainty analysis data is currently not available. Please check back later or contact the administrator.")
+      )
+    }
   })
 }
 
