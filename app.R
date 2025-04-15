@@ -309,6 +309,192 @@ static_images <- list(
   combined = "/Users/praddy5/Desktop/Dashboard/images/combined_map.png"
 )
 
+# Function to load VIC data
+load_vic_data <- function() {
+  nc_file <- nc_open("data/VICOut2.nc")
+  return(nc_file)
+}
+
+# Function to extract time series data
+extract_time_series <- function(nc_file, var_name, lat_idx = NULL, lon_idx = NULL) {
+  if (is.null(lat_idx)) lat_idx <- 1
+  if (is.null(lon_idx)) lon_idx <- 1
+  
+  var_data <- ncvar_get(nc_file, var_name)
+  time <- ncvar_get(nc_file, "time")
+  
+  # Check if we have valid data
+  if (length(dim(var_data)) == 0 || length(time) == 0) {
+    return(NULL)
+  }
+  
+  # Handle different data dimensions
+  if (var_name == "OUT_SOIL_MOIST") {
+    # For soil moisture, average across layers
+    if (length(dim(var_data)) == 4) {
+      data <- apply(var_data[lon_idx, lat_idx, , ], 2, mean, na.rm = TRUE)
+    } else {
+      data <- var_data[lon_idx, lat_idx, ]
+    }
+  } else if (length(dim(var_data)) == 3) {
+    # For 3D data (lon, lat, time)
+    data <- var_data[lon_idx, lat_idx, ]
+  } else if (length(dim(var_data)) == 4) {
+    # For 4D data (lon, lat, layer, time)
+    data <- var_data[lon_idx, lat_idx, 1, ]  # Using first layer
+  } else {
+    return(NULL)
+  }
+  
+  # Create data frame with proper structure
+  result <- data.frame(
+    time = time,
+    value = as.vector(data)
+  )
+  
+  return(result)
+}
+
+# Function to convert VIC time to date
+convert_vic_time <- function(time) {
+  # VIC time is in days since 0001-01-01
+  # Convert to days since 1982-01-01 (start of our data)
+  days_since_1982 <- time - as.numeric(as.Date("1982-01-01") - as.Date("0001-01-01"))
+  as.Date(days_since_1982, origin = "1982-01-01")
+}
+
+# Function to get variable metadata
+get_vic_metadata <- function(var_name) {
+  metadata <- list(
+    "OUT_PREC" = list(
+      name = "Total Precipitation",
+      unit = "mm/day",
+      description = "Total incoming precipitation (rain + snow)"
+    ),
+    "OUT_RAINF" = list(
+      name = "Rainfall",
+      unit = "mm/day",
+      description = "Liquid rainfall amount"
+    ),
+    "OUT_SNOWF" = list(
+      name = "Snowfall",
+      unit = "mm/day",
+      description = "Snowfall amount"
+    ),
+    "OUT_EVAP" = list(
+      name = "Total Evaporation",
+      unit = "mm/day",
+      description = "Total net evaporation"
+    ),
+    "OUT_EVAP_BARE" = list(
+      name = "Bare Soil Evaporation",
+      unit = "mm/day",
+      description = "Evaporation from bare soil"
+    ),
+    "OUT_EVAP_CANOP" = list(
+      name = "Canopy Evaporation",
+      unit = "mm/day",
+      description = "Evaporation from canopy"
+    ),
+    "OUT_TRANSP_VEG" = list(
+      name = "Vegetation Transpiration",
+      unit = "mm/day",
+      description = "Transpiration from vegetation"
+    ),
+    "OUT_PET" = list(
+      name = "Potential ET",
+      unit = "mm/day",
+      description = "Potential evapotranspiration"
+    ),
+    "OUT_RUNOFF" = list(
+      name = "Runoff",
+      unit = "mm/day",
+      description = "Surface runoff"
+    ),
+    "OUT_BASEFLOW" = list(
+      name = "Baseflow",
+      unit = "mm/day",
+      description = "Subsurface runoff"
+    ),
+    "OUT_SOIL_MOIST" = list(
+      name = "Soil Moisture",
+      unit = "mm",
+      description = "Soil total moisture content"
+    ),
+    "OUT_SOIL_WET" = list(
+      name = "Soil Wetness",
+      unit = "fraction",
+      description = "Soil wetness fraction"
+    ),
+    "OUT_SOIL_TEMP" = list(
+      name = "Soil Temperature",
+      unit = "°C",
+      description = "Soil temperature"
+    ),
+    "OUT_SWE" = list(
+      name = "Snow Water Equivalent",
+      unit = "mm",
+      description = "Snow water equivalent in snow pack"
+    ),
+    "OUT_SNOW_MELT" = list(
+      name = "Snow Melt",
+      unit = "mm/day",
+      description = "Snow melt rate"
+    ),
+    "OUT_SUB_SNOW" = list(
+      name = "Sub-Snow",
+      unit = "mm",
+      description = "Water content below snow pack"
+    ),
+    "OUT_SNOW_SURF_TEMP" = list(
+      name = "Snow Surface Temperature",
+      unit = "°C",
+      description = "Temperature at snow surface"
+    ),
+    "OUT_SNOW_PACK_TEMP" = list(
+      name = "Snow Pack Temperature",
+      unit = "°C",
+      description = "Temperature of snow pack"
+    ),
+    "OUT_AIR_TEMP" = list(
+      name = "Air Temperature",
+      unit = "°C",
+      description = "Air temperature at 2m height"
+    ),
+    "OUT_SURF_TEMP" = list(
+      name = "Surface Temperature",
+      unit = "°C",
+      description = "Surface temperature"
+    ),
+    "OUT_BARESOILT" = list(
+      name = "Bare Soil Temperature",
+      unit = "°C",
+      description = "Temperature of bare soil"
+    ),
+    "OUT_VEGT" = list(
+      name = "Vegetation Temperature",
+      unit = "°C",
+      description = "Vegetation temperature"
+    ),
+    "OUT_SURFSTOR" = list(
+      name = "Surface Storage",
+      unit = "mm",
+      description = "Surface water storage"
+    )
+  )
+  return(metadata[[var_name]])
+}
+
+# Function to get VIC data range
+get_vic_years_range <- function() {
+  nc_file <- nc_open("data/VICOut2.nc")
+  time <- ncvar_get(nc_file, "time")
+  dates <- convert_vic_time(time)
+  years <- as.numeric(unique(format(dates, "%Y")))
+  nc_close(nc_file)
+  return(c(min(years), max(years)))
+}
+
 # UI
 ui <- dashboardPage(
   skin = "blue",
@@ -322,7 +508,7 @@ ui <- dashboardPage(
     width = 300,
     sidebarMenu(
       menuItem("Spatial Map", tabName = "spatial", icon = icon("map")),
-      menuItem("VIC Model Output", tabName = "vic", icon = icon("water")),
+      menuItem("VIC Model Analysis", tabName = "vic", icon = icon("water")),
       menuItem("SMAP Data", tabName = "smap", icon = icon("satellite")),
       menuItem("GRACE Data", tabName = "grace", icon = icon("globe")),
       menuItem("Snow Water Equivalent", tabName = "swe", icon = icon("snowflake")),
@@ -863,33 +1049,33 @@ ui <- dashboardPage(
               )
       ),
       
-      # VIC Model Output Tab
+      # VIC Model Tab (Combined)
       tabItem(tabName = "vic",
-              fluidRow(
-                div(class = "variable-info",
-                    h4("VIC Model Variables"),
-                    p("Precipitation: Total water input from rain and snow"),
-                    p("Evapotranspiration: Water loss through plant transpiration and soil evaporation"),
-                    p("Runoff: Surface water flow into streams and rivers"),
-                    p("Soil Moisture: Water content in the soil profile")
-                )
+              # Header with ASU colors
+              div(class = "vic-header",
+                  style = "border-top: 4px solid #8C1D40; border-bottom: 4px solid #FFC627; margin-bottom: 20px;",
+                  h2("VIC Model Analysis", 
+                     style = "color: #8C1D40; text-align: center; padding: 10px;")
               ),
+              
+              # Info Boxes Row
               fluidRow(
-                # Add info tiles for VIC model monitoring
                 infoBox(
                   title = "Model Resolution",
                   value = "4km",
                   icon = icon("ruler"),
-                  color = "maroon",
+                  color = "orange",
                   width = 3,
+                  fill = FALSE,
                   subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: VIC Model Documentation - 2024</span>")
                 ),
                 infoBox(
                   title = "Temporal Resolution",
                   value = "Daily",
                   icon = icon("clock"),
-                  color = "yellow",
+                  color = "red",
                   width = 3,
+                  fill = FALSE,
                   subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: VIC Model Documentation - 2024</span>")
                 ),
                 infoBox(
@@ -898,40 +1084,122 @@ ui <- dashboardPage(
                   icon = icon("calendar"),
                   color = "green",
                   width = 3,
+                  fill = FALSE,
                   subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: VIC Model Outputs</span>")
                 ),
                 infoBox(
                   title = "Variables",
                   value = "7",
                   icon = icon("list"),
-                  color = "blue",
+                  color = "purple",
                   width = 3,
+                  fill = FALSE,
                   subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: VIC Model Documentation - 2024</span>")
                 )
               ),
+              
+              # Model Information Box
               fluidRow(
-                box(width = 12, title = "VIC Model Output",
+                box(
+                  title = "VIC Model Information",
+                  width = 12,
+                  status = NULL,
+                  solidHeader = TRUE,
+                  style = "background-color: white; border: 1px solid #ddd;",
+                  HTML("
+                    <div style='padding: 15px;'>
+                      <p><strong>Model Description:</strong> The VIC (Variable Infiltration Capacity) model provides comprehensive hydrological simulations.</p>
+                      <p><strong>Key variables:</strong> precipitation, evapotranspiration, runoff, soil moisture, and snow water equivalent.</p>
+                      <p><strong>Spatial resolution:</strong> 4km</p>
+                      <p><strong>Temporal resolution:</strong> Daily</p>
+                      <p><strong>Data Range:</strong> 1982-2024</p>
+                    </div>
+                  ")
+                )
+              ),
+              
+              # Data Selection Box
+              fluidRow(
+                box(
+                  title = "Data Selection",
+                  width = 12,
+                  status = NULL,
+                  solidHeader = TRUE,
+                  style = "background-color: white; border: 1px solid #ddd;",
+                  fluidRow(
+                    column(width = 6,
+                           uiOutput("vic_variable")
+                    ),
+                    column(width = 6,
+                           sliderInput("vic_year", "Select Year:",
+                                     min = 1982, max = 2024, value = 2024,
+                                     step = 1, sep = "")
+                    )
+                  )
+                )
+              ),
+              
+              # Variable Info Boxes
+              fluidRow(
+                box(width = 12, title = "Variable Information",
+                    status = NULL,
+                    solidHeader = TRUE,
+                    style = "background-color: white; border: 1px solid #ddd;",
                     fluidRow(
-                      column(width = 6,
-                             uiOutput("vic_variable")
+                      column(width = 3,
+                             infoBoxOutput("vic_var_name", width = 12)
+                      ),
+                      column(width = 3,
+                             infoBoxOutput("vic_var_unit", width = 12)
                       ),
                       column(width = 6,
-                             sliderInput("vic_year", "Select Year:",
-                                       min = 1982, max = 2024, value = 2024,
-                                       step = 1, sep = "")
+                             infoBoxOutput("vic_var_desc", width = 12)
                       )
                     )
                 )
               ),
+              
+              # Visualization Boxes
               fluidRow(
                 box(width = 6, title = "Spatial Distribution",
+                    status = NULL,
+                    solidHeader = TRUE,
+                    style = "background-color: white; border: 1px solid #ddd;",
                     plotlyOutput("vic_map", height = "500px")),
                 box(width = 6, title = "Time Series",
+                    status = NULL,
+                    solidHeader = TRUE,
+                    style = "background-color: white; border: 1px solid #ddd;",
                     plotlyOutput("vic_timeseries", height = "500px"))
               ),
+              
+              # Statistics Boxes
               fluidRow(
-                box(width = 12, title = "Monthly Statistics",
-                    plotlyOutput("vic_monthly", height = "300px"))
+                box(width = 6, title = "Monthly Statistics",
+                    status = NULL,
+                    solidHeader = TRUE,
+                    style = "background-color: white; border: 1px solid #ddd;",
+                    plotlyOutput("vic_monthly", height = "400px")),
+                box(width = 6, title = "Variable Statistics",
+                    status = NULL,
+                    solidHeader = TRUE,
+                    style = "background-color: white; border: 1px solid #ddd;",
+                    tableOutput("vic_stats"))
+              ),
+              
+              # Annual Trends Box
+              fluidRow(
+                box(width = 12, title = "Annual Trends",
+                    status = NULL,
+                    solidHeader = TRUE,
+                    style = "background-color: white; border: 1px solid #ddd;",
+                    plotlyOutput("vic_trends", height = "400px"))
+              ),
+              
+              # Footer
+              div(class = "vic-footer",
+                  style = "border-top: 4px solid #FFC627; margin-top: 20px; padding: 10px; text-align: center;",
+                  HTML("<p style='color: #8C1D40;'>VIC Model Analysis Dashboard | Arizona State University</p>")
               )
       ),
       
@@ -939,10 +1207,10 @@ ui <- dashboardPage(
       tabItem(tabName = "smap",
               fluidRow(
                 div(class = "variable-info",
-                    h4("SMAP Data Information"),
-                    p("SMAP (Soil Moisture Active Passive) provides global measurements of soil moisture."),
-                    p("Data includes three layers: Surface (0-5 cm), Root Zone (0-100 cm), and Profile (0 cm to bedrock)."),
-                    p("Spatial resolution: 9km, Temporal resolution: 2-3 days")
+                    h4("SMAP (Soil Moisture Active Passive) Data"),
+                    p("SMAP provides high-resolution global observations of soil moisture and freeze/thaw state."),
+                    p("Key variables include soil moisture profile and root zone soil moisture."),
+                    p("Spatial resolution: 9km, Temporal resolution: Daily")
                 )
               ),
               fluidRow(
@@ -953,61 +1221,104 @@ ui <- dashboardPage(
                   icon = icon("ruler"),
                   color = "maroon",
                   width = 3,
-                  subtitle = "Source: NASA SMAP Mission - 2024"
+                  subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: SMAP Documentation - 2024</span>")
                 ),
                 infoBox(
                   title = "Temporal Resolution",
-                  value = "2-3 days",
+                  value = "Daily",
                   icon = icon("clock"),
                   color = "yellow",
                   width = 3,
-                  subtitle = "Source: NASA SMAP Mission - 2024"
+                  subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: SMAP Documentation - 2024</span>")
                 ),
                 infoBox(
                   title = "Data Range",
-                  value = "2015-2024",
+                  value = "2020",
                   icon = icon("calendar"),
                   color = "green",
                   width = 3,
-                  subtitle = "Source: NASA SMAP Data Archive"
+                  subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: SMAP Data</span>")
                 ),
                 infoBox(
-                  title = "Soil Layers",
-                  value = "3",
-                  icon = icon("layer-group"),
+                  title = "Variables",
+                  value = "2",
+                  icon = icon("list"),
                   color = "blue",
                   width = 3,
-                  subtitle = "Source: NASA SMAP Mission - 2024"
+                  subtitle = HTML("<span style='font-size: 8px; font-style: italic;'>Source: SMAP Documentation - 2024</span>")
+                )
+              ),
+              # Add custom CSS for dropdown visibility
+              tags$head(tags$style(HTML("
+                .selectize-dropdown {
+                  z-index: 9999 !important;
+                }
+                .selectize-input {
+                  z-index: 9999 !important;
+                }
+                .box {
+                  margin-bottom: 20px;
+                }
+                .selectize-control {
+                  margin-bottom: 10px;
+                }
+              "))),
+              fluidRow(
+                box(width = 12, title = "SMAP Data Analysis",
+                    style = "overflow: visible; z-index: 9999;",
+                    fluidRow(
+                      column(width = 4,
+                             div(style = "z-index: 9999;",
+                                 selectInput("smap_variable", "Select Variable:",
+                                           choices = c(
+                                             "Soil Moisture Profile" = "sm_profile",
+                                             "Root Zone Soil Moisture" = "sm_rootzone"
+                                           ),
+                                           selectize = TRUE,
+                                           width = "100%")
+                             )
+                      ),
+                      column(width = 4,
+                             sliderInput("smap_day", "Select Day:",
+                                       min = 1, max = 365, value = 1,
+                                       step = 1, sep = "")
+                      ),
+                      column(width = 4,
+                             div(style = "z-index: 9999;",
+                                 selectInput("smap_analysis", "Select Analysis:",
+                                           choices = c("Spatial Distribution" = "spatial",
+                                                     "Time Series" = "timeseries",
+                                                     "Monthly Statistics" = "monthly",
+                                                     "Seasonal Analysis" = "seasonal",
+                                                     "Anomaly Analysis" = "anomaly"),
+                                           selectize = TRUE,
+                                           width = "100%")
+                             )
+                      )
+                    )
                 )
               ),
               fluidRow(
-                box(width = 12, title = "SMAP Soil Moisture Map",
-                    fluidRow(
-                      column(width = 4,
-                             selectInput("smap_layer", "Select Layer:",
-                                       choices = c("Surface (0-5 cm)" = "surface",
-                                                 "Root Zone (0-100 cm)" = "rootzone",
-                                                 "Profile (0 cm to bedrock)" = "profile"))
-                      ),
-                      column(width = 4,
-                             dateInput("smap_date", "Select Date:",
-                                     value = Sys.Date(),
-                                     min = "2000-01-01",
-                                     max = Sys.Date())
-                      )
-                    ),
+                box(width = 12, title = "Spatial Distribution",
+                    style = "margin-top: 20px;",
                     plotlyOutput("smap_map", height = "600px"))
               ),
               fluidRow(
-                box(width = 6, title = "Time Series Analysis",
-                    plotlyOutput("smap_timeseries", height = "400px")),
-                box(width = 6, title = "Layer Comparison",
-                    plotlyOutput("smap_comparison", height = "400px"))
+                box(width = 12, title = "Time Series Analysis",
+                    style = "margin-top: 20px;",
+                    plotlyOutput("smap_timeseries", height = "400px"))
               ),
               fluidRow(
+                box(width = 6, title = "Monthly Statistics",
+                    style = "margin-top: 20px;",
+                    plotlyOutput("smap_monthly", height = "400px")),
                 box(width = 6, title = "Seasonal Analysis",
-                    plotlyOutput("smap_seasonal", height = "400px")),
-                box(width = 6, title = "Anomaly Analysis",
+                    style = "margin-top: 20px;",
+                    plotlyOutput("smap_seasonal", height = "400px"))
+              ),
+              fluidRow(
+                box(width = 12, title = "Anomaly Analysis",
+                    style = "margin-top: 20px;",
                     plotlyOutput("smap_anomaly", height = "400px"))
               )
       ),
@@ -1318,13 +1629,234 @@ ui <- dashboardPage(
                 box(width = 6, title = "Model Validation",
                     plotlyOutput("soil_validation", height = "400px"))
               )
+      ),
+      tabItem(
+        tabName = "vic_data",
+        # Header with ASU colors
+        div(class = "vic-header",
+            style = "border-top: 4px solid #8C1D40; border-bottom: 4px solid #FFC627; margin-bottom: 20px;",
+            h2("VIC Model Data Analysis", 
+               style = "color: #8C1D40; text-align: center; padding: 10px;")
+        ),
+        
+        # Main content
+        fluidRow(
+          box(
+            title = "VIC Model Information",
+            width = 12,
+            status = "primary",
+            solidHeader = TRUE,
+            style = "border-top: 3px solid #8C1D40; border-bottom: 3px solid #FFC627;",
+            HTML("
+              <div style='padding: 15px;'>
+                <p style='color: #8C1D40;'><strong>Model Description:</strong> The VIC (Variable Infiltration Capacity) model provides comprehensive hydrological simulations.</p>
+                <p style='color: #8C1D40;'><strong>Key variables:</strong> precipitation, evapotranspiration, runoff, soil moisture, and snow water equivalent.</p>
+                <p style='color: #8C1D40;'><strong>Spatial resolution:</strong> 4km</p>
+                <p style='color: #8C1D40;'><strong>Temporal resolution:</strong> Daily</p>
+                <p style='color: #8C1D40;'><strong>Data Range:</strong> 1982-2024</p>
+              </div>
+            ")
+          )
+        ),
+        
+        # Data Selection Box
+        fluidRow(
+          box(
+            title = "Data Selection",
+            width = 12,
+            status = "primary",
+            solidHeader = TRUE,
+            style = "border-top: 3px solid #8C1D40; border-bottom: 3px solid #FFC627;",
+            column(4,
+              div(style = "color: #8C1D40;",
+                selectInput("vic_variable", "Select Variable:",
+                          choices = c(
+                            "Precipitation" = "OUT_PREC",
+                            "Rainfall" = "OUT_RAINF",
+                            "Evapotranspiration" = "OUT_EVAP",
+                            "Runoff" = "OUT_RUNOFF",
+                            "Baseflow" = "OUT_BASEFLOW",
+                            "Soil Moisture" = "OUT_SOIL_MOIST",
+                            "Snow Water Equivalent" = "OUT_SWE",
+                            "Snow Melt" = "OUT_SNOW_MELT",
+                            "Sub-Snow" = "OUT_SUB_SNOW",
+                            "Snow Surface Temperature" = "OUT_SNOW_SURF_TEMP",
+                            "Snow Pack Temperature" = "OUT_SNOW_PACK_TEMP",
+                            "Air Temperature" = "OUT_AIR_TEMP",
+                            "Surface Temperature" = "OUT_SURF_TEMP",
+                            "Bare Soil Temperature" = "OUT_BARESOILT",
+                            "Vegetation Temperature" = "OUT_VEGT",
+                                    "Soil Moisture" = "OUT_SOIL_MOIST"))
+              )
+            ),
+            column(4,
+              sliderInput("vic_year", "Select Year:",
+                        min = 1982,
+                        max = 2024,
+                        value = 2024,
+                        step = 1,
+                        sep = "",
+                        animate = animationOptions(interval = 1000))
+            ),
+            column(4,
+              div(style = "color: #8C1D40;",
+                selectInput("vic_analysis", "Select Analysis:",
+                          choices = c("Time Series" = "time_series",
+                                    "Spatial Distribution" = "spatial",
+                                    "Monthly Statistics" = "monthly"))
+              )
+            )
+          )
+        ),
+        
+        # Info Boxes Row
+        fluidRow(
+          infoBoxOutput("vic_var_name", width = 4),
+          infoBoxOutput("vic_var_unit", width = 4),
+          infoBoxOutput("vic_var_desc", width = 4)
+        ),
+        
+        # Analysis Plots
+        conditionalPanel(
+          condition = "input.vic_analysis == 'time_series'",
+          fluidRow(
+            box(
+              title = "Time Series Analysis",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              style = "border-top: 3px solid #8C1D40; border-bottom: 3px solid #FFC627;",
+              plotlyOutput("vic_time_series")
+            )
+          )
+        ),
+        conditionalPanel(
+          condition = "input.vic_analysis == 'spatial'",
+          fluidRow(
+            box(
+              title = "Spatial Distribution",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              style = "border-top: 3px solid #8C1D40; border-bottom: 3px solid #FFC627;",
+              plotlyOutput("vic_spatial")
+            )
+          )
+        ),
+        conditionalPanel(
+          condition = "input.vic_analysis == 'monthly'",
+          fluidRow(
+            box(
+              title = "Monthly Statistics",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              style = "border-top: 3px solid #8C1D40; border-bottom: 3px solid #FFC627;",
+              plotlyOutput("vic_monthly")
+            )
+          )
+        ),
+        
+        # Statistics Box
+        fluidRow(
+          box(
+            title = "Variable Statistics",
+            width = 12,
+            status = "primary",
+            solidHeader = TRUE,
+            style = "border-top: 3px solid #8C1D40; border-bottom: 3px solid #FFC627;",
+            tableOutput("vic_stats")
+          )
+        ),
+        
+        # Footer
+        div(class = "vic-footer",
+            style = "border-top: 4px solid #FFC627; margin-top: 20px; padding: 10px; text-align: center;",
+            HTML("<p style='color: #8C1D40;'>VIC Model Data Analysis Dashboard | Arizona State University</p>")
+        )
       )
     )
   )
 )
 
+# Add custom CSS for VIC tab
+tags$head(
+  tags$style(HTML("
+    .vic-header {
+      background-color: white;
+      padding: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .vic-footer {
+      background-color: white;
+      padding: 10px;
+      margin-top: 20px;
+    }
+    
+    .box {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+    }
+    
+    .box:hover {
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+      transform: translateY(-2px);
+    }
+    
+    .info-box {
+      background-color: white !important;
+      border: 1px solid #ddd !important;
+      border-radius: 5px !important;
+    }
+    .info-box-icon[data-icon='ruler'] {
+      background-color: white !important;
+      color: #8C1D40 !important;
+    }
+    .info-box-icon[data-icon='clock'] {
+      background-color: white !important;
+      color: #FFC627 !important;
+    }
+    .info-box-icon[data-icon='calendar'] {
+      background-color: white !important;
+      color: #8C1D40 !important;
+    }
+    .info-box-icon[data-icon='list'] {
+      background-color: white !important;
+      color: #FFC627 !important;
+    }
+    .info-box-content {
+      background-color: white !important;
+    }
+    .info-box-text {
+      color: #8C1D40 !important;
+    }
+    .info-box-number {
+      color: #8C1D40 !important;
+    }
+    .small-box {
+      background-color: white !important;
+      border: 1px solid #ddd !important;
+      border-radius: 5px !important;
+    }
+    .small-box .icon {
+      background-color: white !important;
+      color: #8C1D40 !important;
+    }
+    .small-box .inner {
+      background-color: white !important;
+    }
+    .small-box h3 {
+      color: #8C1D40 !important;
+    }
+    .small-box p {
+      color: #8C1D40 !important;
+    }
+  "))
+)
+
 # Server
-server <- function(input, output) {
+server <- function(input, output, session) {
   # Add resource path for images
   addResourcePath("images", "/Users/praddy5/Desktop/Dashboard/images")
   
@@ -1528,6 +2060,7 @@ server <- function(input, output) {
   # Load VIC data with memory optimization
   vic_data <- reactive({
     selected_year <- input$vic_year
+    selected_variable <- input$vic_variable
     
     if (check_processed_data("vic", selected_year)) {
       return(load_processed_data("vic", selected_year))
@@ -1551,17 +2084,16 @@ server <- function(input, output) {
       time <- ncvar_get(nc, "time")
       
       # Get selected variable
-      var_name <- input$vic_variable
-      if (is.null(var_name)) return(NULL)
+      if (is.null(selected_variable)) return(NULL)
       
       # Handle soil moisture differently due to its additional dimension
-      if (var_name == "OUT_SOIL_MOIST") {
+      if (selected_variable == "OUT_SOIL_MOIST") {
         start <- c(1, 1, 1, 1)
         count <- c(1, -1, -1, -1)
-        data <- ncvar_get(nc, var_name, start = start, count = count)
+        data <- ncvar_get(nc, selected_variable, start = start, count = count)
         data <- drop(data)
       } else {
-        data <- ncvar_get(nc, var_name)
+        data <- ncvar_get(nc, selected_variable)
       }
       
       if (is.null(data)) return(NULL)
@@ -1574,7 +2106,7 @@ server <- function(input, output) {
         lon = lon,
         lat = lat,
         dates = dates,
-        var_name = var_name
+        var_name = selected_variable
       )
       
       save_processed_data(result, "vic", selected_year)
@@ -1585,57 +2117,47 @@ server <- function(input, output) {
     })
   })
   
-  # Load SMAP data
+  # Load SMAP data with corrected structure
   smap_data <- reactive({
-    if (check_processed_data("smap")) {
-      return(load_processed_data("smap"))
-    }
-    
     tryCatch({
-      nc <- nc_open("data/SPL4SMGP.007_9km_aid0001.nc")
+      nc <- nc_open("data/SMAP/SPL4SMGP.007_9km_aid0001.nc")
       on.exit(nc_close(nc))
       
       # Get dimensions
       lon <- ncvar_get(nc, "lon")
       lat <- ncvar_get(nc, "lat")
       time <- ncvar_get(nc, "time")
-      day_period <- ncvar_get(nc, "day_period")
       
-      # Get soil moisture data
-      sm_surface <- ncvar_get(nc, "Geophysical_Data_sm_surface")
-      sm_rootzone <- ncvar_get(nc, "Geophysical_Data_sm_rootzone")
-      sm_profile <- ncvar_get(nc, "Geophysical_Data_sm_profile")
+      # Get selected variable
+      selected_var <- input$smap_variable
+      if (is.null(selected_var)) return(NULL)
       
-      # Get data attributes
-      surface_attrs <- ncatt_get(nc, "Geophysical_Data_sm_surface")
-      rootzone_attrs <- ncatt_get(nc, "Geophysical_Data_sm_rootzone")
-      profile_attrs <- ncatt_get(nc, "Geophysical_Data_sm_profile")
+      # Get data and handle fill values
+      data <- ncvar_get(nc, selected_var)
+      data[data == -999] <- NA
       
       # Convert time to dates
-      dates <- as.Date(time, origin = "2000-01-01")
+      dates <- as.Date(time, origin = "2020-01-01")
       
-      # Calculate spatial means for each time step
-      surface_means <- apply(sm_surface[,,,1], 3, mean, na.rm = TRUE)
-      rootzone_means <- apply(sm_rootzone[,,,1], 3, mean, na.rm = TRUE)
-      profile_means <- apply(sm_profile[,,,1], 3, mean, na.rm = TRUE)
+      # Calculate spatial means and statistics
+      # Note: data is [lon, lat, time], so we need to transpose for proper mean calculation
+      spatial_means <- apply(data, 3, mean, na.rm = TRUE)
+      spatial_sd <- apply(data, 3, sd, na.rm = TRUE)
+      
+      # Calculate monthly means for anomaly analysis
+      monthly_means <- tapply(spatial_means, format(dates, "%m"), mean, na.rm = TRUE)
       
       result <- list(
-        surface = sm_surface,
-        rootzone = sm_rootzone,
-        profile = sm_profile,
+        data = data,
         lon = lon,
         lat = lat,
         dates = dates,
-        day_period = day_period,
-        surface_attrs = surface_attrs,
-        rootzone_attrs = rootzone_attrs,
-        profile_attrs = profile_attrs,
-        surface_means = surface_means,
-        rootzone_means = rootzone_means,
-        profile_means = profile_means
+        spatial_means = spatial_means,
+        spatial_sd = spatial_sd,
+        monthly_means = monthly_means,
+        var_name = selected_var
       )
       
-      save_processed_data(result, "smap")
       return(result)
     }, error = function(e) {
       print(paste("Error loading SMAP data:", e$message))
@@ -1703,67 +2225,69 @@ server <- function(input, output) {
   })
   
   # VIC Map
-  output$vic_map <- renderUI({
-    var_name <- input$vic_variable
-    if (is.null(var_name)) return(NULL)
+  output$vic_map <- renderPlotly({
+    data <- vic_data()
+    basin <- basin_data()
     
-    # Map image paths based on variable
-    img_paths <- list(
-      "OUT_PREC" = "images/vic_precipitation_map.png",
-      "OUT_RAINF" = "images/vic_precipitation_map.png",
-      "OUT_EVAP" = "images/vic_evapotranspiration_map.png",
-      "OUT_RUNOFF" = "images/vic_runoff_map.png",
-      "OUT_BASEFLOW" = "images/vic_baseflow_map.png",
-      "OUT_SOIL_MOIST" = "images/vic_soil_moisture_layer_1_map.png",
-      "OUT_SWE" = "images/vic_snow_water_equivalent_map.png"
-    )
+    if (is.null(data) || is.null(basin)) return(NULL)
     
-    img_path <- img_paths[[var_name]]
-    if (!is.null(img_path) && file.exists(img_path)) {
-      tags$img(src = img_path, 
-               alt = paste("VIC Model", var_name, "Map"),
-               style = "width: 100%; height: auto; max-height: 500px; object-fit: contain;")
-    } else {
-      div(class = "alert alert-warning",
-          tags$h4("VIC Model Map"),
-          tags$p("Spatial distribution of selected variable."),
-          tags$p("Shows the geographical pattern across the basin."),
-          style = "text-align: center; padding: 20px;")
+    # Get the selected day's data
+    selected_day <- input$vic_day
+    if (selected_day > dim(data$data)[3]) {
+      selected_day <- dim(data$data)[3]
     }
+    day_data <- data$data[,,selected_day]
+    
+    # Create spatial data frame
+    spatial_df <- expand.grid(
+      lon = data$lon,
+      lat = data$lat
+    )
+    spatial_df$value <- as.vector(day_data)
+    
+    # Remove NA values
+    spatial_df <- spatial_df[!is.na(spatial_df$value),]
+    
+    # Create the plot
+    p <- ggplot() +
+      # Add basin boundary
+      geom_sf(data = basin, fill = NA, color = asu_maroon, size = 1) +
+      # Add VIC data
+      geom_tile(data = spatial_df, aes(x = lon, y = lat, fill = value)) +
+      scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+      labs(
+        x = "Longitude",
+        y = "Latitude"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_blank(),
+        plot.subtitle = element_blank(),
+        legend.position = "right",
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10),
+        legend.title = element_blank()
+      )
+    
+    ggplotly(p) %>%
+      layout(
+        autosize = TRUE,
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4),
+        showlegend = TRUE
+      )
   })
   
-  # SMAP Map
+  # SMAP Map with corrected data handling
   output$smap_map <- renderPlotly({
     data <- smap_data()
     basin <- basin_data()
-    layer <- input$smap_layer
-    selected_date <- input$smap_date
     
-    if (is.null(data) || is.null(basin)) {
-      print("SMAP or basin data is NULL")
-      return(NULL)
-    }
+    if (is.null(data) || is.null(basin)) return(NULL)
     
-    # Constrain date to available range
-    min_date <- min(data$dates)
-    max_date <- max(data$dates)
-    if (selected_date < min_date) selected_date <- min_date
-    if (selected_date > max_date) selected_date <- max_date
-    
-    # Get the time index for selected date
-    time_index <- which.min(abs(data$dates - selected_date))
-    if (length(time_index) == 0) return(NULL)
-    
-    # Get the data for selected layer
-    if (layer == "surface") {
-      last_step <- data$surface[,,time_index,1]
-      title <- "SMAP Surface Soil Moisture"
-    } else if (layer == "rootzone") {
-      last_step <- data$rootzone[,,time_index,1]
-      title <- "SMAP Root Zone Soil Moisture"
-    } else {
-      last_step <- data$profile[,,time_index,1]
-      title <- "SMAP Profile Soil Moisture"
+    # Get the selected day's data
+    selected_day <- input$smap_day
+    if (selected_day > dim(data$data)[3]) {
+      selected_day <- dim(data$data)[3]
     }
     
     # Create spatial data frame
@@ -1771,7 +2295,10 @@ server <- function(input, output) {
       lon = data$lon,
       lat = data$lat
     )
-    spatial_df$value <- as.vector(last_step)
+    
+    # Get data for selected day
+    day_data <- data$data[,,selected_day]
+    spatial_df$value <- as.vector(day_data)
     
     # Remove NA values
     spatial_df <- spatial_df[!is.na(spatial_df$value),]
@@ -1782,26 +2309,30 @@ server <- function(input, output) {
       geom_sf(data = basin, fill = NA, color = asu_maroon, size = 1) +
       # Add SMAP data
       geom_tile(data = spatial_df, aes(x = lon, y = lat, fill = value)) +
-      scale_fill_viridis_c(option = "viridis", na.value = "transparent",
-                          name = "Soil Moisture (m³/m³)",
-                          limits = c(0, 0.9)) +
+      scale_fill_viridis_c(
+        option = "viridis",
+        na.value = "transparent",
+        limits = c(0, 0.75),
+        name = "Soil Moisture (m³/m³)"
+      ) +
       labs(
-        title = paste(title, "- Colorado River Basin"),
-        subtitle = paste("Date:", format(selected_date, "%Y-%m-%d")),
         x = "Longitude",
-        y = "Latitude"
+        y = "Latitude",
+        title = paste("Soil Moisture Distribution - Day", selected_day)
       ) +
       theme_minimal() +
       theme(
         plot.title = element_text(hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5),
-        legend.position = "right"
+        legend.position = "right",
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10)
       )
     
     ggplotly(p) %>%
       layout(
         autosize = TRUE,
-        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4)
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4),
+        showlegend = TRUE
       )
   })
   
@@ -2312,35 +2843,153 @@ server <- function(input, output) {
   })
   
   # VIC Time Series
-  output$vic_timeseries <- renderUI({
-    img_path <- "/Users/praddy5/Desktop/Dashboard/images/vic_time_series.png"
-    if (file.exists(img_path)) {
-      tags$img(src = "images/vic_time_series.png", 
-               alt = "VIC Model Time Series",
-               style = "width: 100%; height: auto; max-height: 400px; object-fit: contain;")
-    } else {
-      div(class = "alert alert-warning",
-          tags$h4("VIC Model Time Series"),
-          tags$p("Time series visualization of VIC model outputs."),
-          tags$p("Shows daily variations in selected variables."),
-          style = "text-align: center; padding: 20px;")
-    }
+  output$vic_timeseries <- renderPlotly({
+    data <- vic_data()
+    if (is.null(data)) return(NULL)
+    
+    # Calculate spatial mean for each time step
+    means <- apply(data$data, 3, mean, na.rm = TRUE)
+    
+    # Create time series data frame
+    ts_df <- data.frame(
+      Date = data$dates,
+      Value = means
+    )
+    
+    plot_ly(ts_df, x = ~Date, y = ~Value, type = 'scatter', mode = 'lines',
+            line = list(color = asu_maroon)) %>%
+      layout(
+        xaxis = list(title = "Date", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        yaxis = list(title = "", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        plot_bgcolor = 'white',
+        paper_bgcolor = 'white',
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4),
+        showlegend = FALSE
+      )
   })
   
   # VIC Monthly Statistics
-  output$vic_monthly <- renderUI({
-    img_path <- "/Users/praddy5/Desktop/Dashboard/images/vic_monthly_stats.png"
-    if (file.exists(img_path)) {
-      tags$img(src = "images/vic_monthly_stats.png", 
-               alt = "VIC Model Monthly Statistics",
-               style = "width: 100%; height: auto; max-height: 300px; object-fit: contain;")
-    } else {
-      div(class = "alert alert-warning",
-          tags$h4("VIC Model Monthly Statistics"),
-          tags$p("Monthly statistics for VIC model outputs."),
-          tags$p("Shows mean, min, and max values for each month."),
-          style = "text-align: center; padding: 20px;")
+  output$vic_monthly <- renderPlotly({
+    req(input$vic_variable, input$vic_year)
+    
+    nc_file <- vic_data()
+    if (is.null(nc_file)) return(NULL)
+    
+    var_data <- ncvar_get(nc_file, input$vic_variable)
+    time <- ncvar_get(nc_file, "time")
+    dates <- convert_vic_time(time)
+    
+    # Check if we have valid data
+    if (length(dim(var_data)) == 0 || length(time) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected parameters"))
     }
+    
+    # Get spatial dimensions
+    lat_dim <- nc_file$dim$lat$len
+    lon_dim <- nc_file$dim$lon$len
+    
+    # Use middle point of the grid
+    lat_idx <- floor(lat_dim/2)
+    lon_idx <- floor(lon_dim/2)
+    
+    # Get data for selected year
+    year_idx <- which(format(dates, "%Y") == as.character(input$vic_year))
+    if (length(year_idx) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected year"))
+    }
+    
+    # Extract data for the selected location
+    if (input$vic_variable == "OUT_SOIL_MOIST") {
+      # For soil moisture, average across layers
+      if (length(dim(var_data)) == 4) {
+        loc_data <- apply(var_data[lon_idx, lat_idx, , year_idx], 2, mean, na.rm = TRUE)
+      } else {
+        loc_data <- var_data[lon_idx, lat_idx, year_idx]
+      }
+    } else if (length(dim(var_data)) == 3) {
+      loc_data <- var_data[lon_idx, lat_idx, year_idx]
+    } else if (length(dim(var_data)) == 4) {
+      loc_data <- var_data[lon_idx, lat_idx, 1, year_idx]
+    } else {
+      return(plotly_empty() %>% 
+        layout(title = "Invalid data dimensions"))
+    }
+    
+    # Calculate monthly statistics
+    monthly_data <- data.frame(
+      date = dates[year_idx],
+      value = loc_data
+    )
+    monthly_data$month <- format(monthly_data$date, "%B")
+    
+    # Order months correctly
+    monthly_data$month <- factor(monthly_data$month, 
+                                levels = month.name)
+    
+    # Calculate monthly means
+    monthly_stats <- monthly_data %>%
+      group_by(month) %>%
+      summarise(mean_value = mean(value, na.rm = TRUE))
+    
+    metadata <- get_vic_metadata(input$vic_variable)
+    
+    # Create monthly plot
+    p <- ggplot(monthly_stats, aes(x = month, y = mean_value)) +
+      geom_bar(stat = "identity", fill = asu_maroon) +
+      theme_minimal() +
+      labs(x = "Month", 
+           y = paste0("Mean ", metadata$name, " (", metadata$unit, ")"),
+           title = paste("Monthly Average for", input$vic_year)) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    ggplotly(p)
+  })
+  
+  # VIC Annual Trends
+  output$vic_trends <- renderPlotly({
+    # Load data for all years
+    years <- 1982:2024
+    annual_means <- sapply(years, function(year) {
+      file_path <- paste0("data/VIC_outputs/CRB_PRISM_Calibrated.", year, "-01-01.nc")
+      if (!file.exists(file_path)) return(NA)
+      
+      nc <- nc_open(file_path)
+      on.exit(nc_close(nc))
+      
+      data <- ncvar_get(nc, input$vic_variable)
+      if (input$vic_variable == "OUT_SOIL_MOIST") {
+        data <- drop(data[1,,,])
+      }
+      
+      mean(apply(data, 3, mean, na.rm = TRUE), na.rm = TRUE)
+    })
+    
+    # Create annual trends data frame
+    trends_df <- data.frame(
+      Year = years,
+      Value = annual_means
+    )
+    
+    # Calculate trend line
+    trend_line <- lm(Value ~ Year, data = trends_df)
+    trends_df$Trend <- predict(trend_line)
+    
+    plot_ly(trends_df) %>%
+      add_trace(x = ~Year, y = ~Value, type = 'scatter', mode = 'lines+markers',
+                name = 'Annual Mean', line = list(color = asu_maroon, width = 2),
+                marker = list(size = 8, color = asu_maroon)) %>%
+      add_trace(x = ~Year, y = ~Trend, type = 'scatter', mode = 'lines',
+                name = 'Trend', line = list(dash = 'dot', color = asu_gold, width = 2)) %>%
+      layout(
+        xaxis = list(title = "Year", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        yaxis = list(title = "", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        legend = list(x = 0.1, y = 0.9),
+        plot_bgcolor = 'white',
+        paper_bgcolor = 'white',
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4)
+      )
   })
   
   # SMAP Time Series
@@ -2351,54 +3000,68 @@ server <- function(input, output) {
     # Create time series data frame
     ts_df <- data.frame(
       Date = data$dates,
-      Surface = data$surface_means,
-      Rootzone = data$rootzone_means,
-      Profile = data$profile_means
+      Value = data$spatial_means,
+      SD = data$spatial_sd
     )
     
     plot_ly(ts_df) %>%
-      add_trace(x = ~Date, y = ~Surface, name = 'Surface (0-5 cm)', type = 'scatter', mode = 'lines',
-                line = list(color = asu_maroon)) %>%
-      add_trace(x = ~Date, y = ~Rootzone, name = 'Root Zone (0-100 cm)', type = 'scatter', mode = 'lines',
-                line = list(color = asu_gold)) %>%
-      add_trace(x = ~Date, y = ~Profile, name = 'Profile (0 cm to bedrock)', type = 'scatter', mode = 'lines',
-                line = list(color = asu_dark_maroon)) %>%
+      add_trace(x = ~Date, y = ~Value, type = 'scatter', mode = 'lines',
+                name = 'Mean', line = list(color = asu_maroon, width = 2)) %>%
+      add_trace(x = ~Date, y = ~(Value + SD), type = 'scatter', mode = 'lines',
+                name = 'Mean + SD', line = list(dash = 'dash', color = asu_gold, width = 1)) %>%
+      add_trace(x = ~Date, y = ~(Value - SD), type = 'scatter', mode = 'lines',
+                name = 'Mean - SD', line = list(dash = 'dash', color = asu_gold, width = 1)) %>%
       layout(
-        title = "SMAP Soil Moisture Time Series",
-        xaxis = list(title = "Date"),
-        yaxis = list(title = "Soil Moisture (m³/m³)"),
+        xaxis = list(title = "Date", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        yaxis = list(title = "Soil Moisture (m³/m³)", showgrid = TRUE, gridcolor = '#f0f0f0',
+                    range = c(0, 0.75)),
         legend = list(x = 0.1, y = 0.9),
         plot_bgcolor = 'white',
-        paper_bgcolor = 'white'
+        paper_bgcolor = 'white',
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4)
       )
   })
   
-  # SMAP Layer Comparison
-  output$smap_comparison <- renderPlotly({
+  # SMAP Monthly Statistics
+  output$smap_monthly <- renderPlotly({
     data <- smap_data()
     if (is.null(data)) return(NULL)
     
-    # Create comparison data frame
-    comp_df <- data.frame(
-      Surface = data$surface_means,
-      Rootzone = data$rootzone_means,
-      Profile = data$profile_means
-    )
+    # Create monthly statistics data frame
+    monthly_df <- data.frame(
+      Date = data$dates,
+      Value = data$spatial_means
+    ) %>%
+      mutate(Month = month(Date, label = TRUE)) %>%
+      group_by(Month) %>%
+      summarise(
+        Mean = mean(Value, na.rm = TRUE),
+        Min = min(Value, na.rm = TRUE),
+        Max = max(Value, na.rm = TRUE),
+        SD = sd(Value, na.rm = TRUE),
+        .groups = 'drop'
+      )
     
-    plot_ly(comp_df) %>%
-      add_trace(x = ~Surface, y = ~Rootzone, name = 'Surface vs Rootzone', type = 'scatter', mode = 'markers',
-                marker = list(color = asu_maroon)) %>%
-      add_trace(x = ~Surface, y = ~Profile, name = 'Surface vs Profile', type = 'scatter', mode = 'markers',
-                marker = list(color = asu_gold)) %>%
-      add_trace(x = ~Rootzone, y = ~Profile, name = 'Rootzone vs Profile', type = 'scatter', mode = 'markers',
-                marker = list(color = asu_dark_maroon)) %>%
+    plot_ly(monthly_df) %>%
+      add_trace(x = ~Month, y = ~Mean, type = 'scatter', mode = 'lines+markers',
+                name = 'Mean', line = list(color = asu_maroon, width = 2),
+                marker = list(size = 8, color = asu_maroon)) %>%
+      add_trace(x = ~Month, y = ~Min, type = 'scatter', mode = 'lines',
+                name = 'Min', line = list(dash = 'dash', color = asu_gold, width = 1)) %>%
+      add_trace(x = ~Month, y = ~Max, type = 'scatter', mode = 'lines',
+                name = 'Max', line = list(dash = 'dash', color = asu_dark_maroon, width = 1)) %>%
+      add_trace(x = ~Month, y = ~(Mean + SD), type = 'scatter', mode = 'lines',
+                name = 'Mean + SD', line = list(dash = 'dot', color = asu_gold, width = 1)) %>%
+      add_trace(x = ~Month, y = ~(Mean - SD), type = 'scatter', mode = 'lines',
+                name = 'Mean - SD', line = list(dash = 'dot', color = asu_gold, width = 1)) %>%
       layout(
-        title = "SMAP Layer Comparison",
-        xaxis = list(title = "Soil Moisture (m³/m³)"),
-        yaxis = list(title = "Soil Moisture (m³/m³)"),
+        xaxis = list(title = "Month", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        yaxis = list(title = "Soil Moisture (m³/m³)", showgrid = TRUE, gridcolor = '#f0f0f0',
+                    range = c(0, 0.75)),
         legend = list(x = 0.1, y = 0.9),
         plot_bgcolor = 'white',
-        paper_bgcolor = 'white'
+        paper_bgcolor = 'white',
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4)
       )
   })
   
@@ -2407,94 +3070,77 @@ server <- function(input, output) {
     data <- smap_data()
     if (is.null(data)) return(NULL)
     
-    # Create time series data frame
-    ts_df <- data.frame(
+    # Create seasonal data frame
+    seasonal_df <- data.frame(
       Date = data$dates,
-      Surface = data$surface_means,
-      Rootzone = data$rootzone_means,
-      Profile = data$profile_means
-    )
-    
-    # Add month column
-    ts_df$Month <- month(ts_df$Date, label = TRUE)
-    
-    # Calculate monthly statistics
-    monthly_stats <- ts_df %>%
-      group_by(Month) %>%
+      Value = data$spatial_means
+    ) %>%
+      mutate(
+        Season = case_when(
+          month(Date) %in% 3:5 ~ "Spring",
+          month(Date) %in% 6:8 ~ "Summer",
+          month(Date) %in% 9:11 ~ "Fall",
+          TRUE ~ "Winter"
+        )
+      ) %>%
+      group_by(Season) %>%
       summarise(
-        Surface_Mean = mean(Surface, na.rm = TRUE),
-        Rootzone_Mean = mean(Rootzone, na.rm = TRUE),
-        Profile_Mean = mean(Profile, na.rm = TRUE),
+        Mean = mean(Value, na.rm = TRUE),
+        SD = sd(Value, na.rm = TRUE),
+        Min = min(Value, na.rm = TRUE),
+        Max = max(Value, na.rm = TRUE),
         .groups = 'drop'
       )
     
-    plot_ly(monthly_stats) %>%
-      add_trace(x = ~Month, y = ~Surface_Mean, name = 'Surface', type = 'scatter', mode = 'lines+markers',
-                line = list(color = asu_maroon)) %>%
-      add_trace(x = ~Month, y = ~Rootzone_Mean, name = 'Root Zone', type = 'scatter', mode = 'lines+markers',
-                line = list(color = asu_gold)) %>%
-      add_trace(x = ~Month, y = ~Profile_Mean, name = 'Profile', type = 'scatter', mode = 'lines+markers',
-                line = list(color = asu_dark_maroon)) %>%
+    plot_ly(seasonal_df) %>%
+      add_trace(x = ~Season, y = ~Mean, type = 'bar',
+                name = 'Mean', marker = list(color = asu_maroon)) %>%
+      add_trace(x = ~Season, y = ~SD, type = 'scatter', mode = 'lines+markers',
+                name = 'Standard Deviation', line = list(color = asu_gold, width = 2),
+                marker = list(size = 8, color = asu_gold)) %>%
+      add_trace(x = ~Season, y = ~Min, type = 'scatter', mode = 'markers',
+                name = 'Minimum', marker = list(color = asu_dark_maroon, size = 8)) %>%
+      add_trace(x = ~Season, y = ~Max, type = 'scatter', mode = 'markers',
+                name = 'Maximum', marker = list(color = asu_maroon, size = 8)) %>%
       layout(
-        title = "Monthly Average Soil Moisture",
-        xaxis = list(title = "Month"),
-        yaxis = list(title = "Soil Moisture (m³/m³)"),
+        xaxis = list(title = "Season", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        yaxis = list(title = "Soil Moisture (m³/m³)", showgrid = TRUE, gridcolor = '#f0f0f0',
+                    range = c(0, 0.75)),
         legend = list(x = 0.1, y = 0.9),
         plot_bgcolor = 'white',
-        paper_bgcolor = 'white'
+        paper_bgcolor = 'white',
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4)
       )
   })
   
-  # SMAP Anomaly Analysis
+  # New Anomaly Analysis
   output$smap_anomaly <- renderPlotly({
     data <- smap_data()
     if (is.null(data)) return(NULL)
     
-    # Create time series data frame
-    ts_df <- data.frame(
-      Date = data$dates,
-      Surface = data$surface_means,
-      Rootzone = data$rootzone_means,
-      Profile = data$profile_means
-    )
-    
-    # Calculate monthly climatology
-    ts_df$Month <- month(ts_df$Date)
-    monthly_clim <- ts_df %>%
-      group_by(Month) %>%
-      summarise(
-        Surface_Clim = mean(Surface, na.rm = TRUE),
-        Rootzone_Clim = mean(Rootzone, na.rm = TRUE),
-        Profile_Clim = mean(Profile, na.rm = TRUE)
-      )
-    
     # Calculate anomalies
-    ts_df <- ts_df %>%
-      left_join(monthly_clim, by = "Month") %>%
+    anomaly_df <- data.frame(
+      Date = data$dates,
+      Value = data$spatial_means
+    ) %>%
       mutate(
-        Surface_Anomaly = Surface - Surface_Clim,
-        Rootzone_Anomaly = Rootzone - Rootzone_Clim,
-        Profile_Anomaly = Profile - Profile_Clim
+        Month = format(Date, "%m"),
+        Monthly_Mean = data$monthly_means[Month],
+        Anomaly = Value - Monthly_Mean
       )
     
-    plot_ly(ts_df) %>%
-      add_trace(x = ~Date, y = ~Surface_Anomaly, name = 'Surface', type = 'scatter', mode = 'lines',
-                line = list(color = asu_maroon)) %>%
-      add_trace(x = ~Date, y = ~Rootzone_Anomaly, name = 'Root Zone', type = 'scatter', mode = 'lines',
-                line = list(color = asu_gold)) %>%
-      add_trace(x = ~Date, y = ~Profile_Anomaly, name = 'Profile', type = 'scatter', mode = 'lines',
-                line = list(color = asu_dark_maroon)) %>%
+    plot_ly(anomaly_df) %>%
+      add_trace(x = ~Date, y = ~Anomaly, type = 'scatter', mode = 'lines',
+                name = 'Anomaly', line = list(color = asu_maroon, width = 2)) %>%
+      add_trace(x = ~Date, y = 0, type = 'scatter', mode = 'lines',
+                name = 'Reference', line = list(dash = 'dash', color = 'black', width = 1)) %>%
       layout(
-        title = "Soil Moisture Anomalies",
-        xaxis = list(title = "Date"),
-        yaxis = list(title = "Anomaly (m³/m³)"),
+        xaxis = list(title = "Date", showgrid = TRUE, gridcolor = '#f0f0f0'),
+        yaxis = list(title = "Soil Moisture Anomaly (m³/m³)", showgrid = TRUE, gridcolor = '#f0f0f0'),
         legend = list(x = 0.1, y = 0.9),
         plot_bgcolor = 'white',
         paper_bgcolor = 'white',
-        shapes = list(
-          list(type = "line", x0 = min(ts_df$Date), x1 = max(ts_df$Date),
-               y0 = 0, y1 = 0, line = list(dash = "dash"))
-        )
+        margin = list(l = 50, r = 50, b = 50, t = 50, pad = 4)
       )
   })
   
@@ -2848,9 +3494,373 @@ server <- function(input, output) {
   output$selected_soil_year <- renderText({
     input$soil_year
   })
+  
+  # VIC data reactive
+  vic_data <- reactive({
+    load_vic_data()
+  })
+  
+  # Time series plot
+  output$vic_time_series <- renderPlotly({
+    req(input$vic_variable, input$vic_year)
+    
+    nc_file <- vic_data()
+    if (is.null(nc_file)) return(NULL)
+    
+    # Get spatial dimensions
+    lat_dim <- nc_file$dim$lat$len
+    lon_dim <- nc_file$dim$lon$len
+    
+    # Use middle point of the grid
+    lat_idx <- floor(lat_dim/2)
+    lon_idx <- floor(lon_dim/2)
+    
+    # Extract time series data
+    data <- extract_time_series(nc_file, input$vic_variable, lat_idx, lon_idx)
+    if (is.null(data) || nrow(data) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected parameters"))
+    }
+    
+    # Convert time to proper dates
+    data$date <- convert_vic_time(data$time)
+    
+    # Filter for selected year
+    data <- data[format(data$date, "%Y") == as.character(input$vic_year), ]
+    
+    # Check if we have data
+    if (nrow(data) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected year"))
+    }
+    
+    metadata <- get_vic_metadata(input$vic_variable)
+    
+    # Create plot
+    p <- ggplot(data, aes(x = date, y = value)) +
+      geom_line(color = asu_maroon) +
+      theme_minimal() +
+      labs(x = "Date", 
+           y = paste0(metadata$name, " (", metadata$unit, ")"),
+           title = paste("Daily", metadata$name, "for", input$vic_year)) +
+      theme(plot.background = element_rect(fill = "white"),
+            panel.background = element_rect(fill = "white"),
+            axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_x_date(date_labels = "%b %d", date_breaks = "1 month")
+    
+    ggplotly(p) %>%
+      layout(xaxis = list(
+        title = "Date",
+        tickformat = "%b %d",
+        range = c(min(data$date), max(data$date))
+      ))
+  })
+  
+  # Variable statistics
+  output$vic_stats <- renderTable({
+    nc_file <- vic_data()
+    var_data <- ncvar_get(nc_file, input$vic_variable)
+    metadata <- get_vic_metadata(input$vic_variable)
+    
+    stats <- data.frame(
+      Statistic = c("Minimum", "Maximum", "Mean", "Standard Deviation"),
+      Value = c(
+        min(var_data, na.rm = TRUE),
+        max(var_data, na.rm = TRUE),
+        mean(var_data, na.rm = TRUE),
+        sd(var_data, na.rm = TRUE)
+      )
+    )
+    
+    # Add units to the values
+    stats$Value <- paste0(round(stats$Value, 2), " ", metadata$unit)
+    
+    stats
+  })
+
+  # VIC variable info boxes
+  output$vic_var_name <- renderInfoBox({
+    metadata <- get_vic_metadata(input$vic_variable)
+    infoBox(
+      "Variable",
+      metadata$name,
+      icon = icon("chart-line"),
+      color = "maroon",
+      fill = TRUE
+    )
+  })
+  
+  output$vic_var_unit <- renderInfoBox({
+    metadata <- get_vic_metadata(input$vic_variable)
+    infoBox(
+      "Unit",
+      metadata$unit,
+      icon = icon("ruler"),
+      color = "yellow",
+      fill = TRUE
+    )
+  })
+  
+  output$vic_var_desc <- renderInfoBox({
+    metadata <- get_vic_metadata(input$vic_variable)
+    infoBox(
+      "Description",
+      metadata$description,
+      icon = icon("info-circle"),
+      color = "maroon",
+      fill = TRUE
+    )
+  })
+
+  # VIC spatial plot
+  output$vic_spatial <- renderPlotly({
+    nc_file <- vic_data()
+    var_data <- ncvar_get(nc_file, input$vic_variable)
+    time <- ncvar_get(nc_file, "time")
+    dates <- convert_vic_time(time)
+    
+    # Get spatial dimensions
+    lat_dim <- nc_file$dim$lat$len
+    lon_dim <- nc_file$dim$lon$len
+    
+    # Get data for selected year and day
+    year_idx <- which(format(dates, "%Y") == input$vic_year)
+    if (length(year_idx) == 0) return(NULL)
+    
+    day_idx <- year_idx[input$vic_day]
+    if (day_idx > length(year_idx)) day_idx <- length(year_idx)
+    
+    # Extract data for the selected day
+    if (input$vic_variable == "OUT_SOIL_MOIST") {
+      # For soil moisture, average across layers
+      if (length(dim(var_data)) == 4) {
+        spatial_data <- apply(var_data[,,,day_idx], c(1,2), mean, na.rm = TRUE)
+      } else {
+        spatial_data <- var_data[,,day_idx]
+      }
+    } else if (length(dim(var_data)) == 3) {
+      spatial_data <- var_data[,,day_idx]
+    } else if (length(dim(var_data)) == 4) {
+      spatial_data <- var_data[,,1,day_idx]
+    } else {
+      return(NULL)
+    }
+    
+    # Create spatial plot
+    p <- ggplot(data = melt(spatial_data), 
+                aes(x = Var1, y = Var2, fill = value)) +
+      geom_tile() +
+      scale_fill_viridis_c() +
+      theme_minimal() +
+      labs(x = "Longitude", y = "Latitude", 
+           fill = get_vic_metadata(input$vic_variable)$unit,
+           title = paste("Spatial Distribution on", format(dates[day_idx], "%B %d, %Y")))
+    
+    ggplotly(p)
+  })
+  
+  # VIC time series plot
+  output$vic_time_series <- renderPlotly({
+    req(input$vic_variable, input$vic_year)
+    
+    nc_file <- vic_data()
+    if (is.null(nc_file)) return(NULL)
+    
+    # Get spatial dimensions
+    lat_dim <- nc_file$dim$lat$len
+    lon_dim <- nc_file$dim$lon$len
+    
+    # Use middle point of the grid
+    lat_idx <- floor(lat_dim/2)
+    lon_idx <- floor(lon_dim/2)
+    
+    # Extract time series data
+    data <- extract_time_series(nc_file, input$vic_variable, lat_idx, lon_idx)
+    if (is.null(data) || nrow(data) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected parameters"))
+    }
+    
+    # Convert time to proper dates
+    data$date <- convert_vic_time(data$time)
+    
+    # Filter for selected year
+    data <- data[format(data$date, "%Y") == as.character(input$vic_year), ]
+    
+    # Check if we have data
+    if (nrow(data) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected year"))
+    }
+    
+    metadata <- get_vic_metadata(input$vic_variable)
+    
+    # Create plot
+    p <- ggplot(data, aes(x = date, y = value)) +
+      geom_line(color = asu_maroon) +
+      theme_minimal() +
+      labs(x = "Date", 
+           y = paste0(metadata$name, " (", metadata$unit, ")"),
+           title = paste("Daily", metadata$name, "for", input$vic_year)) +
+      theme(plot.background = element_rect(fill = "white"),
+            panel.background = element_rect(fill = "white"),
+            axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_x_date(date_labels = "%b %d", date_breaks = "1 month")
+    
+    ggplotly(p) %>%
+      layout(xaxis = list(
+        title = "Date",
+        tickformat = "%b %d",
+        range = c(min(data$date), max(data$date))
+      ))
+  })
+  
+  # VIC monthly statistics
+  output$vic_monthly <- renderPlotly({
+    req(input$vic_variable, input$vic_year)
+    
+    nc_file <- vic_data()
+    if (is.null(nc_file)) return(NULL)
+    
+    var_data <- ncvar_get(nc_file, input$vic_variable)
+    time <- ncvar_get(nc_file, "time")
+    dates <- convert_vic_time(time)
+    
+    # Check if we have valid data
+    if (length(dim(var_data)) == 0 || length(time) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected parameters"))
+    }
+    
+    # Get spatial dimensions
+    lat_dim <- nc_file$dim$lat$len
+    lon_dim <- nc_file$dim$lon$len
+    
+    # Use middle point of the grid
+    lat_idx <- floor(lat_dim/2)
+    lon_idx <- floor(lon_dim/2)
+    
+    # Get data for selected year
+    year_idx <- which(format(dates, "%Y") == as.character(input$vic_year))
+    if (length(year_idx) == 0) {
+      return(plotly_empty() %>% 
+        layout(title = "No data available for the selected year"))
+    }
+    
+    # Extract data for the selected location
+    if (input$vic_variable == "OUT_SOIL_MOIST") {
+      # For soil moisture, average across layers
+      if (length(dim(var_data)) == 4) {
+        loc_data <- apply(var_data[lon_idx, lat_idx, , year_idx], 2, mean, na.rm = TRUE)
+      } else {
+        loc_data <- var_data[lon_idx, lat_idx, year_idx]
+      }
+    } else if (length(dim(var_data)) == 3) {
+      loc_data <- var_data[lon_idx, lat_idx, year_idx]
+    } else if (length(dim(var_data)) == 4) {
+      loc_data <- var_data[lon_idx, lat_idx, 1, year_idx]
+    } else {
+      return(plotly_empty() %>% 
+        layout(title = "Invalid data dimensions"))
+    }
+    
+    # Calculate monthly statistics
+    monthly_data <- data.frame(
+      date = dates[year_idx],
+      value = loc_data
+    )
+    monthly_data$month <- format(monthly_data$date, "%B")
+    
+    # Order months correctly
+    monthly_data$month <- factor(monthly_data$month, 
+                                levels = month.name)
+    
+    # Calculate monthly means
+    monthly_stats <- monthly_data %>%
+      group_by(month) %>%
+      summarise(mean_value = mean(value, na.rm = TRUE))
+    
+    metadata <- get_vic_metadata(input$vic_variable)
+    
+    # Create monthly plot
+    p <- ggplot(monthly_stats, aes(x = month, y = mean_value)) +
+      geom_bar(stat = "identity", fill = asu_maroon) +
+      theme_minimal() +
+      labs(x = "Month", 
+           y = paste0("Mean ", metadata$name, " (", metadata$unit, ")"),
+           title = paste("Monthly Average for", input$vic_year)) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    ggplotly(p)
+  })
+  
+  # VIC annual trends
+  output$vic_trends <- renderPlotly({
+    # Load data for all years
+    years <- 1982:2024
+    annual_means <- sapply(years, function(year) {
+      file_path <- paste0("data/VIC_outputs/CRB_PRISM_Calibrated.", year, "-01-01.nc")
+      if (!file.exists(file_path)) return(NA)
+      
+      nc <- nc_open(file_path)
+      on.exit(nc_close(nc))
+      
+      data <- ncvar_get(nc, input$vic_variable)
+      if (input$vic_variable == "OUT_SOIL_MOIST") {
+        data <- drop(data[1,,,])
+      }
+      
+      mean(apply(data, 3, mean, na.rm = TRUE), na.rm = TRUE)
+    })
+    
+    # Create annual trends data frame
+    trends_df <- data.frame(
+      Year = years,
+      Value = annual_means
+    )
+    
+    # Calculate trend line
+    trend_line <- lm(Value ~ Year, data = trends_df)
+    trends_df$Trend <- predict(trend_line)
+    
+    metadata <- get_vic_metadata(input$vic_variable)
+    
+    # Create trends plot
+    p <- ggplot(trends_df, aes(x = Year)) +
+      geom_line(aes(y = Value), color = asu_maroon) +
+      geom_line(aes(y = Trend), color = asu_gold, linetype = "dashed") +
+      theme_minimal() +
+      labs(x = "Year", 
+           y = paste0("Annual Mean ", metadata$name, " (", metadata$unit, ")"),
+           title = paste("Annual Trends in", metadata$name))
+    
+    ggplotly(p)
+  })
+  
+  # VIC statistics table
+  output$vic_stats <- renderTable({
+    nc_file <- vic_data()
+    var_data <- ncvar_get(nc_file, input$vic_variable)
+    metadata <- get_vic_metadata(input$vic_variable)
+    
+    stats <- data.frame(
+      Statistic = c("Minimum", "Maximum", "Mean", "Standard Deviation"),
+      Value = c(
+        min(var_data, na.rm = TRUE),
+        max(var_data, na.rm = TRUE),
+        mean(var_data, na.rm = TRUE),
+        sd(var_data, na.rm = TRUE)
+      )
+    )
+    
+    # Add units to the values
+    stats$Value <- paste0(round(stats$Value, 2), " ", metadata$unit)
+    
+    stats
+  })
 }
 
 # Run the application with increased memory limit
-options(shiny.maxRequestSize = 10000*1024^2)  # Increase to 1GB
+options(shiny.maxRequestSize = 80000*1024^2)  # Increase to 80GB
 app <- shinyApp(ui = ui, server = server)
-runApp(app, launch.browser = TRUE, port = 3838)
+runApp(app, launch.browser = TRUE, port = 3839)
