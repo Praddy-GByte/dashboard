@@ -546,7 +546,19 @@ ui <- dashboardPage(
   
   dashboardHeader(
     title = "Colorado River Basin Dashboard",
-    titleWidth = 300
+    titleWidth = 300,
+    tags$li(class = "dropdown",
+      tags$img(src = "logos/nasa.png", height = "40px", 
+              style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+    ),
+    tags$li(class = "dropdown",
+      tags$img(src = "logos/asu.jpg", height = "40px", 
+              style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+    ),
+    tags$li(class = "dropdown",
+      tags$img(src = "logos/cap.jpg", height = "40px", 
+              style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+    )
   ),
   
   dashboardSidebar(
@@ -559,6 +571,7 @@ ui <- dashboardPage(
       menuItem("Snow Water Equivalent", tabName = "swe", icon = icon("snowflake")),
       menuItem("Precipitation", tabName = "precip", icon = icon("cloud-rain")),
       menuItem("Soil Moisture", tabName = "soil", icon = icon("seedling")),
+      menuItem("SWE Anomalies", tabName = "swe_anomalies", icon = icon("snowflake")),
       menuItem("Help", tabName = "help", icon = icon("question-circle"))
     )
   ),
@@ -1643,8 +1656,11 @@ ui <- dashboardPage(
                       ),
                       column(width = 4,
                              sliderInput("smap_day", "Select Day:",
-                                       min = 1, max = 365, value = 1,
-                                       step = 1, sep = "")
+                                       min = 1,
+                                       max = 365,
+                                       value = 1,
+                                       step = 1,
+                                       animate = animationOptions(interval = 1000))
                       ),
                       column(width = 4,
                              div(style = "z-index: 9999;",
@@ -1774,385 +1790,145 @@ ui <- dashboardPage(
       tabItem(tabName = "swe",
               fluidRow(
                 div(class = "variable-info",
-                    h4("Snow Water Equivalent Information"),
-                    p("SNOTEL (SNOwpack TELemetry) stations provide real-time snowpack data across the Colorado River Basin."),
-                    p("Data includes snow water equivalent (SWE), snow depth, temperature, and precipitation."),
+                    h4("Snow Water Equivalent Analysis"),
+                    p("Compare VIC model snow water equivalent (SWE) with SNOTEL station observations."),
+                    p("Analyze spatial patterns and temporal trends in snowpack conditions."),
                     p("Critical for water resource management and flood forecasting.")
                 )
               ),
               fluidRow(
-                # Add info tiles for SNOTEL monitoring
+                # Add info tiles for data sources
                 infoBox(
-                  title = "Stations in Basin",
-                  value = "100+",
+                  title = "VIC Model SWE",
+                  value = "6km Resolution",
                   icon = icon("snowflake"),
                   color = "maroon",
                   width = 3,
-                  subtitle = "Source: NRCS SNOTEL Network - 2024"
+                  subtitle = "Daily, 1982-2024"
                 ),
                 infoBox(
-                  title = "Update Frequency",
-                  value = "Daily",
-                  icon = icon("clock"),
+                  title = "SNOTEL Stations",
+                  value = "100+",
+                  icon = icon("map-marker-alt"),
                   color = "yellow",
                   width = 3,
-                  subtitle = "Source: NRCS SNOTEL Network - 2024"
+                  subtitle = "Daily updates"
                 ),
                 infoBox(
-                  title = "Data Range",
+                  title = "Analysis Period",
                   value = "1982-2024",
                   icon = icon("calendar"),
                   color = "green",
                   width = 3,
-                  subtitle = "Source: NRCS SNOTEL Data Archive"
+                  subtitle = "Historical coverage"
                 ),
                 infoBox(
-                  title = "Metrics",
+                  title = "Variables",
                   value = "4",
                   icon = icon("chart-line"),
                   color = "blue",
                   width = 3,
-                  subtitle = "Source: NRCS SNOTEL Network - 2024"
+                  subtitle = "SWE, depth, temp, precip"
                 )
               ),
               fluidRow(
                 tabsetPanel(
-                  tabPanel("Station Map",
-                           box(width = 12, title = "SNOTEL Stations in Colorado Basin",
-                               div(class = "map-container",
-                                   tags$img(src = "images/colorado_river_snotel_map.png",
-                                           alt = "SNOTEL Stations Map",
-                                           style = "width: 100%; height: auto; max-height: 800px; object-fit: contain;"),
-                                   div(class = "map-caption",
-                                       p("SNOTEL stations across the Colorado River Basin."),
-                                       p("Each station provides real-time snowpack data.")
-                                   )
-                               )
-                           )
-                  ),
-                  tabPanel("Time Series",
-                           box(width = 12, title = "SNOTEL Time Series",
-                               div(class = "plot-container",
-                                   tags$img(src = "images/snotel_time_series.png",
-                                           alt = "SNOTEL Time Series",
-                                           style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                   div(class = "plot-caption",
-                                       p("Time series of snow water equivalent (SWE) from SNOTEL stations."),
-                                       p("Shows daily variations in snowpack conditions.")
-                                   )
-                               )
-                           )
-                  ),
-                  tabPanel("Seasonal Analysis",
-                           box(width = 12, title = "Seasonal Snowpack Patterns",
-                               div(class = "plot-container",
-                                   tags$img(src = "images/snotel_seasonal.png",
-                                           alt = "Seasonal Analysis",
-                                           style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                   div(class = "plot-caption",
-                                       p("Seasonal patterns of snowpack accumulation and melt."),
-                                       p("Helps understand annual snowpack dynamics.")
-                                   )
-                               )
-                           )
-                  ),
-                  tabPanel("Elevation Analysis",
-                           box(width = 12, title = "Elevation Distribution",
-                               div(class = "plot-container",
-                                   tags$img(src = "images/snotel_elevation.png",
-                                           alt = "Elevation Analysis",
-                                           style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                   div(class = "plot-caption",
-                                       p("Relationship between elevation and snowpack characteristics."),
-                                       p("Important for understanding snow distribution patterns.")
-                                   )
-                               )
-                           )
-                  ),
-                  tabPanel("Historical Analysis",
-                           box(width = 12, title = "Historical Analysis Trends",
-                               div(class = "info-tile",
-                                   h4("Historical Trends"),
-                                   p("Analysis of historical trends in snowpack, precipitation, and water resources."),
-                                   p("Provides insights into long-term changes and patterns in the basin.")
-                               ),
+                  tabPanel("Spatial Analysis",
+                           box(width = 12, title = "Daily Snow Water Equivalent Map",
                                fluidRow(
-                                 column(width = 8,
-                                   div(class = "map-container",
-                                       tags$img(src = "images/historical_trend.png",
-                                               alt = "Historical Analysis Map",
-                                               style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                       div(class = "map-caption",
-                                           p("Historical trends analysis across the Colorado River Basin."),
-                                           p("Shows long-term changes in key water resource indicators.")
-                                       )
-                                   )
+                                 column(width = 3,
+                                        sliderInput("swe_date", "Select Date:",
+                                                  min = as.Date("1982-01-01"),
+                                                  max = as.Date("2024-12-31"),
+                                                  value = as.Date("2024-01-01"),
+                                                  timeFormat = "%Y-%m-%d",
+                                                  animate = animationOptions(interval = 1000))
+                                 ),
+                                 column(width = 3,
+                                        checkboxGroupInput("swe_layers", "Map Layers:",
+                                                         choices = c("SNOTEL Sites" = "snotel",
+                                                                   "HUC-10 Boundaries" = "huc10",
+                                                                   "Analysis Sub-basins" = "subbasins",
+                                                                   "CRB/UCRB/LCRB" = "basins"),
+                                                         selected = c("snotel", "huc10"))
+                                 ),
+                                 column(width = 3,
+                                        selectInput("swe_metric", "Select Metric:",
+                                                  choices = c("Snow Water Equivalent (mm)" = "SWE",
+                                                            "Snow Depth (cm)" = "SNWD",
+                                                            "Temperature (°C)" = "TOBS",
+                                                            "Precipitation (mm)" = "PREC"))
+                                 ),
+                                 column(width = 3,
+                                        selectInput("swe_source", "Data Source:",
+                                                  choices = c("VIC Model" = "vic",
+                                                            "SNOTEL Stations" = "snotel",
+                                                            "Both" = "both"))
+                                 )
+                               ),
+                               plotlyOutput("swe_map", height = "600px")
+                           )
+                  ),
+                  tabPanel("Time Series Analysis",
+                           box(width = 12, title = "Snow Water Equivalent Time Series",
+                               fluidRow(
+                                 column(width = 4,
+                                        selectInput("swe_station", "Select SNOTEL Station:",
+                                                  choices = c("All Stations" = "all",
+                                                            "Individual Stations" = "individual"))
                                  ),
                                  column(width = 4,
-                                   infoBox(
-                                     title = "Time Period",
-                                     value = "1982-2024",
-                                     icon = icon("calendar"),
-                                     color = "maroon",
-                                     width = 12,
-                                     subtitle = "Analysis period"
-                                   ),
-                                   infoBox(
-                                     title = "Key Indicators",
-                                     value = "5+",
-                                     icon = icon("chart-line"),
-                                     color = "blue",
-                                     width = 12,
-                                     subtitle = "Snowpack, precip, flow"
-                                   ),
-                                   infoBox(
-                                     title = "Update Frequency",
-                                     value = "Annual",
-                                     icon = icon("sync"),
-                                     color = "green",
-                                     width = 12,
-                                     subtitle = "Trend analysis"
-                                   )
+                                        sliderInput("swe_date_range", "Date Range:",
+                                                  min = as.Date("1982-01-01"),
+                                                  max = as.Date("2024-12-31"),
+                                                  value = c(as.Date("1982-01-01"), as.Date("2024-12-31")),
+                                                  timeFormat = "%Y-%m-%d")
+                                 ),
+                                 column(width = 4,
+                                        selectInput("swe_aggregation", "Aggregation:",
+                                                  choices = c("Daily" = "daily",
+                                                            "Weekly" = "weekly",
+                                                            "Monthly" = "monthly",
+                                                            "Annual" = "annual"))
                                  )
                                ),
-                               tabsetPanel(
-                                 tabPanel("Snowpack Trends",
-                                          fluidRow(
-                                            column(width = 8,
-                                              div(class = "plot-container",
-                                                  tags$img(src = "images/snotel_trend.png",
-                                                          alt = "Snowpack Trends",
-                                                          style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                                  div(class = "plot-caption",
-                                                      p("Long-term trends in snowpack accumulation and melt."),
-                                                      p("Shows changes in snow water equivalent over time.")
-                                                  )
-                                              )
-                                            ),
-                                            column(width = 4,
-                                              infoBox(
-                                                title = "Trend Direction",
-                                                value = "Decreasing",
-                                                icon = icon("arrow-down"),
-                                                color = "maroon",
-                                                width = 12,
-                                                subtitle = "Overall trend"
-                                              ),
-                                              infoBox(
-                                                title = "Rate of Change",
-                                                value = "-2.5%/decade",
-                                                icon = icon("chart-line"),
-                                                color = "blue",
-                                                width = 12,
-                                                subtitle = "Average change"
-                                              ),
-                                              infoBox(
-                                                title = "Significance",
-                                                value = "95%",
-                                                icon = icon("chart-bar"),
-                                                color = "green",
-                                                width = 12,
-                                                subtitle = "Confidence level"
-                                              )
-                                            )
-                                          )
+                               plotlyOutput("swe_timeseries", height = "400px")
+                           )
+                  ),
+                  tabPanel("Statistical Analysis",
+                           box(width = 12, title = "Snow Water Equivalent Statistics",
+                               fluidRow(
+                                 column(width = 6,
+                                        plotlyOutput("swe_monthly_stats", height = "400px")
                                  ),
-                                 tabPanel("Precipitation Trends",
-                                          fluidRow(
-                                            column(width = 8,
-                                              div(class = "plot-container",
-                                                  tags$img(src = "images/vic_trend.png",
-                                                          alt = "Precipitation Trends",
-                                                          style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                                  div(class = "plot-caption",
-                                                      p("Historical trends in precipitation patterns."),
-                                                      p("Analyzes changes in rainfall and snowfall over time.")
-                                                  )
-                                              )
-                                            ),
-                                            column(width = 4,
-                                              infoBox(
-                                                title = "Annual Change",
-                                                value = "-1.2%/decade",
-                                                icon = icon("cloud-rain"),
-                                                color = "maroon",
-                                                width = 12,
-                                                subtitle = "Precipitation trend"
-                                              ),
-                                              infoBox(
-                                                title = "Seasonal Shift",
-                                                value = "Earlier",
-                                                icon = icon("calendar-alt"),
-                                                color = "blue",
-                                                width = 12,
-                                                subtitle = "Peak timing"
-                                              ),
-                                              infoBox(
-                                                title = "Variability",
-                                                value = "Increasing",
-                                                icon = icon("random"),
-                                                color = "green",
-                                                width = 12,
-                                                subtitle = "Year-to-year variation"
-                                              )
-                                            )
-                                          )
-                                 ),
-                                 tabPanel("Water Resources",
-                                          fluidRow(
-                                            column(width = 8,
-                                              div(class = "plot-container",
-                                                  tags$img(src = "images/grace_trend.png",
-                                                          alt = "Water Resources Trends",
-                                                          style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                                  div(class = "plot-caption",
-                                                      p("Changes in water availability and usage."),
-                                                      p("Tracks long-term trends in water resources.")
-                                                  )
-                                              )
-                                            ),
-                                            column(width = 4,
-                                              infoBox(
-                                                title = "Storage Change",
-                                                value = "-15%",
-                                                icon = icon("water"),
-                                                color = "maroon",
-                                                width = 12,
-                                                subtitle = "Reservoir levels"
-                                              ),
-                                              infoBox(
-                                                title = "Demand Growth",
-                                                value = "+2%/year",
-                                                icon = icon("users"),
-                                                color = "blue",
-                                                width = 12,
-                                                subtitle = "Water usage"
-                                              ),
-                                              infoBox(
-                                                title = "Efficiency",
-                                                value = "+1.5%/year",
-                                                icon = icon("tint"),
-                                                color = "green",
-                                                width = 12,
-                                                subtitle = "Water use efficiency"
-                                              )
-                                            )
-                                          )
-                                 ),
-                                 tabPanel("Soil Moisture Trends",
-                                          fluidRow(
-                                            column(width = 8,
-                                              div(class = "plot-container",
-                                                  tags$img(src = "images/smap_surface_trend.png",
-                                                          alt = "Soil Moisture Trends",
-                                                          style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                                  div(class = "plot-caption",
-                                                      p("Historical trends in soil moisture patterns."),
-                                                      p("Analyzes changes in surface and root zone soil moisture.")
-                                                  )
-                                              )
-                                            ),
-                                            column(width = 4,
-                                              infoBox(
-                                                title = "Surface Change",
-                                                value = "-1.8%/decade",
-                                                icon = icon("tint"),
-                                                color = "maroon",
-                                                width = 12,
-                                                subtitle = "Surface soil moisture"
-                                              ),
-                                              infoBox(
-                                                title = "Root Zone Change",
-                                                value = "-2.1%/decade",
-                                                icon = icon("seedling"),
-                                                color = "blue",
-                                                width = 12,
-                                                subtitle = "Root zone moisture"
-                                              ),
-                                              infoBox(
-                                                title = "Seasonal Impact",
-                                                value = "Increasing",
-                                                icon = icon("calendar-alt"),
-                                                color = "green",
-                                                width = 12,
-                                                subtitle = "Seasonal variation"
-                                              )
-                                            )
-                                          )
-                                 ),
-                                 tabPanel("Combined Trends",
-                                          fluidRow(
-                                            column(width = 8,
-                                              div(class = "plot-container",
-                                                  tags$img(src = "images/combined_trends.png",
-                                                          alt = "Combined Trends",
-                                                          style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;"),
-                                                  div(class = "plot-caption",
-                                                      p("Combined analysis of all water resource trends."),
-                                                      p("Shows the relationship between different water resource indicators.")
-                                                  )
-                                              )
-                                            ),
-                                            column(width = 4,
-                                              infoBox(
-                                                title = "Correlation",
-                                                value = "0.85",
-                                                icon = icon("link"),
-                                                color = "maroon",
-                                                width = 12,
-                                                subtitle = "Trend correlation"
-                                              ),
-                                              infoBox(
-                                                title = "Consistency",
-                                                value = "High",
-                                                icon = icon("check-circle"),
-                                                color = "blue",
-                                                width = 12,
-                                                subtitle = "Trend consistency"
-                                              ),
-                                              infoBox(
-                                                title = "Significance",
-                                                value = "99%",
-                                                icon = icon("chart-bar"),
-                                                color = "green",
-                                                width = 12,
-                                                subtitle = "Statistical significance"
-                                              )
-                                            )
-                                          )
+                                 column(width = 6,
+                                        plotlyOutput("swe_elevation_stats", height = "400px")
                                  )
                                ),
-                               div(class = "source-info",
-                                   p("Source: USGS, NOAA, and Bureau of Reclamation - 2024",
-                                     style = "font-size: 10px; font-style: italic; text-align: right;")
+                               fluidRow(
+                                 column(width = 12,
+                                        plotlyOutput("swe_trend_analysis", height = "400px")
+                                 )
+                               )
+                           )
+                  ),
+                  tabPanel("Model Comparison",
+                           box(width = 12, title = "VIC vs SNOTEL Comparison",
+                               fluidRow(
+                                 column(width = 6,
+                                        plotlyOutput("swe_model_comparison", height = "400px")
+                                 ),
+                                 column(width = 6,
+                                        plotlyOutput("swe_validation", height = "400px")
+                                 )
+                               ),
+                               fluidRow(
+                                 column(width = 12,
+                                        dataTableOutput("swe_stats_table")
+                                 )
                                )
                            )
                   )
-                )
-              ),
-              fluidRow(
-                box(width = 12, title = "Interactive Analysis",
-                    fluidRow(
-                      column(width = 4,
-                             selectInput("swe_metric", "Select Metric:",
-                                       choices = c("Snow Water Equivalent" = "WTEQ",
-                                                 "Snow Depth" = "SNWD",
-                                                 "Temperature" = "TOBS",
-                                                 "Precipitation" = "PREC"))
-                      ),
-                      column(width = 4,
-                             sliderInput("swe_year", "Select Year:",
-                                       min = 1982, max = 2024, value = 2024,
-                                       step = 1, sep = "")
-                      ),
-                      column(width = 4,
-                             selectInput("swe_analysis", "Select Analysis:",
-                                       choices = c("Spatial Distribution" = "spatial",
-                                                 "Monthly Statistics" = "monthly",
-                                                 "Elevation Analysis" = "elevation"))
-                      )
-                    ),
-                    leafletOutput("snotel_map", height = "600px")
                 )
               )
       ),
@@ -2461,7 +2237,7 @@ ui <- dashboardPage(
                   tabBox(
                     width = 12,
                     tabPanel("Overview",
-                            includeMarkdown("help_overview.md")
+                            includeMarkdown("help.md")
                     ),
                     tabPanel("Usage Guide",
                             includeMarkdown("help_usage.md")
@@ -2476,6 +2252,25 @@ ui <- dashboardPage(
                             includeMarkdown("help_contact.md")
                     )
                   )
+                )
+              )
+      ),
+      tabItem(tabName = "swe_anomalies",
+              fluidRow(
+                box(title = "April 1 SWE Anomalies (1985-2024)",
+                    width = 12,
+                    plotlyOutput("april1_swe_anomalies_plot"),
+                    p("This visualization shows the April 1 SWE anomalies for the Colorado River Basin from 1985 to 2024. 
+                      The anomalies are calculated relative to the 1985-2024 average. Years with positive anomalies 
+                      indicate above-average snowpack, while negative anomalies indicate below-average snowpack.")
+                )
+              ),
+              fluidRow(
+                box(title = "April 1 SWE Trends",
+                    width = 12,
+                    plotlyOutput("april1_swe_trends_plot"),
+                    p("This plot shows the linear trend in April 1 SWE over the study period. The trend line 
+                      helps identify long-term changes in snowpack accumulation.")
                 )
               )
       )
@@ -3273,6 +3068,478 @@ server <- function(input, output, session) {
     if (file.exists("vic_time_series.html")) {
       includeHTML("vic_time_series.html")
     }
+  })
+  
+  # Snow Water Equivalent Analysis
+  output$swe_map <- renderPlotly({
+    # Get selected date and data source
+    selected_date <- input$swe_date
+    selected_source <- input$swe_source
+    selected_metric <- input$swe_metric
+    
+    # Load VIC data for the selected date
+    vic_data <- load_processed_data("vic", format(selected_date, "%Y"))
+    if (!is.null(vic_data)) {
+      vic_data <- vic_data %>%
+        filter(date == selected_date) %>%
+        select(lon, lat, value = selected_metric)
+    }
+    
+    # Load SNOTEL data for the selected date
+    snotel_data <- load_processed_data("snotel")
+    if (!is.null(snotel_data)) {
+      snotel_data <- snotel_data %>%
+        filter(date == selected_date) %>%
+        select(lon = longitude, lat = latitude, value = selected_metric)
+    }
+    
+    # Create base map
+    p <- plot_ly() %>%
+      layout(
+        title = paste("Snow Water Equivalent -", selected_date),
+        xaxis = list(title = "Longitude"),
+        yaxis = list(title = "Latitude")
+      )
+    
+    # Add VIC data if selected
+    if (selected_source %in% c("vic", "both") && !is.null(vic_data)) {
+      p <- p %>%
+        add_trace(
+          data = vic_data,
+          x = ~lon,
+          y = ~lat,
+          z = ~value,
+          type = "heatmap",
+          colorscale = "Viridis",
+          name = "VIC Model"
+        )
+    }
+    
+    # Add SNOTEL points if selected
+    if (selected_source %in% c("snotel", "both") && !is.null(snotel_data)) {
+      p <- p %>%
+        add_trace(
+          data = snotel_data,
+          x = ~lon,
+          y = ~lat,
+          type = "scatter",
+          mode = "markers",
+          marker = list(
+            size = 10,
+            color = ~value,
+            colorscale = "Viridis",
+            showscale = TRUE
+          ),
+          name = "SNOTEL Stations"
+        )
+    }
+    
+    # Add selected layers
+    if ("huc10" %in% input$swe_layers) {
+      # Add HUC-10 boundaries
+      p <- p %>%
+        add_trace(
+          data = huc10_boundaries,
+          x = ~lon,
+          y = ~lat,
+          type = "scatter",
+          mode = "lines",
+          line = list(color = "black", width = 1),
+          name = "HUC-10 Boundaries"
+        )
+    }
+    
+    if ("subbasins" %in% input$swe_layers) {
+      # Add analysis sub-basins
+      p <- p %>%
+        add_trace(
+          data = subbasin_boundaries,
+          x = ~lon,
+          y = ~lat,
+          type = "scatter",
+          mode = "lines",
+          line = list(color = "blue", width = 2),
+          name = "Analysis Sub-basins"
+        )
+    }
+    
+    if ("basins" %in% input$swe_layers) {
+      # Add CRB/UCRB/LCRB boundaries
+      p <- p %>%
+        add_trace(
+          data = basin_boundaries,
+          x = ~lon,
+          y = ~lat,
+          type = "scatter",
+          mode = "lines",
+          line = list(color = "red", width = 2),
+          name = "CRB/UCRB/LCRB"
+        )
+    }
+    
+    p
+  })
+  
+  output$swe_timeseries <- renderPlotly({
+    # Get selected parameters
+    selected_station <- input$swe_station
+    date_range <- input$swe_date_range
+    aggregation <- input$swe_aggregation
+    
+    # Load and filter data
+    snotel_data <- load_processed_data("snotel")
+    vic_data <- load_processed_data("vic")
+    
+    if (!is.null(snotel_data) && !is.null(vic_data)) {
+      # Filter by date range
+      snotel_data <- snotel_data %>%
+        filter(date >= date_range[1], date <= date_range[2])
+      
+      vic_data <- vic_data %>%
+        filter(date >= date_range[1], date <= date_range[2])
+      
+      # Aggregate data based on selection
+      if (aggregation == "weekly") {
+        snotel_data <- snotel_data %>%
+          mutate(week = floor_date(date, "week")) %>%
+          group_by(week) %>%
+          summarise(value = mean(value, na.rm = TRUE))
+        
+        vic_data <- vic_data %>%
+          mutate(week = floor_date(date, "week")) %>%
+          group_by(week) %>%
+          summarise(value = mean(value, na.rm = TRUE))
+      } else if (aggregation == "monthly") {
+        snotel_data <- snotel_data %>%
+          mutate(month = floor_date(date, "month")) %>%
+          group_by(month) %>%
+          summarise(value = mean(value, na.rm = TRUE))
+        
+        vic_data <- vic_data %>%
+          mutate(month = floor_date(date, "month")) %>%
+          group_by(month) %>%
+          summarise(value = mean(value, na.rm = TRUE))
+      } else if (aggregation == "annual") {
+        snotel_data <- snotel_data %>%
+          mutate(year = floor_date(date, "year")) %>%
+          group_by(year) %>%
+          summarise(value = mean(value, na.rm = TRUE))
+        
+        vic_data <- vic_data %>%
+          mutate(year = floor_date(date, "year")) %>%
+          group_by(year) %>%
+          summarise(value = mean(value, na.rm = TRUE))
+      }
+      
+      # Create plot
+      p <- plot_ly() %>%
+        layout(
+          title = "Snow Water Equivalent Time Series",
+          xaxis = list(title = "Date"),
+          yaxis = list(title = "SWE (mm)")
+        )
+      
+      # Add SNOTEL data
+      if (selected_station == "all") {
+        p <- p %>%
+          add_trace(
+            data = snotel_data,
+            x = ~date,
+            y = ~value,
+            type = "scatter",
+            mode = "lines",
+            name = "SNOTEL Average"
+          )
+      } else {
+        # Add individual station data
+        for (station in unique(snotel_data$station_id)) {
+          station_data <- snotel_data %>%
+            filter(station_id == station)
+          
+          p <- p %>%
+            add_trace(
+              data = station_data,
+              x = ~date,
+              y = ~value,
+              type = "scatter",
+              mode = "lines",
+              name = paste("SNOTEL", station)
+            )
+        }
+      }
+      
+      # Add VIC data
+      p <- p %>%
+        add_trace(
+          data = vic_data,
+          x = ~date,
+          y = ~value,
+          type = "scatter",
+          mode = "lines",
+          name = "VIC Model",
+          line = list(dash = "dash")
+        )
+      
+      p
+    }
+  })
+  
+  output$swe_monthly_stats <- renderPlotly({
+    # Load and process data
+    snotel_data <- load_processed_data("snotel")
+    vic_data <- load_processed_data("vic")
+    
+    if (!is.null(snotel_data) && !is.null(vic_data)) {
+      # Calculate monthly statistics
+      snotel_monthly <- snotel_data %>%
+        mutate(month = month(date)) %>%
+        group_by(month) %>%
+        summarise(
+          mean = mean(value, na.rm = TRUE),
+          min = min(value, na.rm = TRUE),
+          max = max(value, na.rm = TRUE)
+        )
+      
+      vic_monthly <- vic_data %>%
+        mutate(month = month(date)) %>%
+        group_by(month) %>%
+        summarise(
+          mean = mean(value, na.rm = TRUE),
+          min = min(value, na.rm = TRUE),
+          max = max(value, na.rm = TRUE)
+        )
+      
+      # Create plot
+      plot_ly() %>%
+        add_trace(
+          data = snotel_monthly,
+          x = ~month,
+          y = ~mean,
+          type = "scatter",
+          mode = "lines+markers",
+          name = "SNOTEL Mean",
+          error_y = list(
+            type = "data",
+            symmetric = FALSE,
+            array = ~max - ~mean,
+            arrayminus = ~mean - ~min
+          )
+        ) %>%
+        add_trace(
+          data = vic_monthly,
+          x = ~month,
+          y = ~mean,
+          type = "scatter",
+          mode = "lines+markers",
+          name = "VIC Mean",
+          line = list(dash = "dash")
+        ) %>%
+        layout(
+          title = "Monthly Snow Water Equivalent Statistics",
+          xaxis = list(title = "Month"),
+          yaxis = list(title = "SWE (mm)")
+        )
+    }
+  })
+  
+  output$swe_elevation_stats <- renderPlotly({
+    # Load and process data
+    snotel_data <- load_processed_data("snotel")
+    
+    if (!is.null(snotel_data)) {
+      # Create elevation vs SWE plot
+      plot_ly(
+        data = snotel_data,
+        x = ~elevation,
+        y = ~value,
+        type = "scatter",
+        mode = "markers",
+        text = ~paste("Station:", station_id, "<br>Elevation:", elevation, "m"),
+        marker = list(
+          size = 8,
+          color = ~value,
+          colorscale = "Viridis",
+          showscale = TRUE
+        )
+      ) %>%
+        layout(
+          title = "Elevation vs Snow Water Equivalent",
+          xaxis = list(title = "Elevation (m)"),
+          yaxis = list(title = "SWE (mm)")
+        )
+    }
+  })
+  
+  output$swe_trend_analysis <- renderPlotly({
+    # Load and process data
+    snotel_data <- load_processed_data("snotel")
+    vic_data <- load_processed_data("vic")
+    
+    if (!is.null(snotel_data) && !is.null(vic_data)) {
+      # Calculate annual trends
+      snotel_trend <- snotel_data %>%
+        mutate(year = year(date)) %>%
+        group_by(year) %>%
+        summarise(value = mean(value, na.rm = TRUE)) %>%
+        mutate(source = "SNOTEL")
+      
+      vic_trend <- vic_data %>%
+        mutate(year = year(date)) %>%
+        group_by(year) %>%
+        summarise(value = mean(value, na.rm = TRUE)) %>%
+        mutate(source = "VIC")
+      
+      # Combine data
+      trend_data <- bind_rows(snotel_trend, vic_trend)
+      
+      # Create plot
+      plot_ly(
+        data = trend_data,
+        x = ~year,
+        y = ~value,
+        color = ~source,
+        type = "scatter",
+        mode = "lines+markers"
+      ) %>%
+        layout(
+          title = "Annual Snow Water Equivalent Trends",
+          xaxis = list(title = "Year"),
+          yaxis = list(title = "SWE (mm)")
+        )
+    }
+  })
+  
+  output$swe_model_comparison <- renderPlotly({
+    # Load and process data
+    snotel_data <- load_processed_data("snotel")
+    vic_data <- load_processed_data("vic")
+    
+    if (!is.null(snotel_data) && !is.null(vic_data)) {
+      # Create scatter plot comparing VIC and SNOTEL
+      plot_ly(
+        data = snotel_data,
+        x = ~value,
+        y = ~vic_value,
+        type = "scatter",
+        mode = "markers",
+        text = ~paste("Station:", station_id, "<br>Date:", date),
+        marker = list(
+          size = 8,
+          color = ~elevation,
+          colorscale = "Viridis",
+          showscale = TRUE
+        )
+      ) %>%
+        add_trace(
+          x = c(0, max(snotel_data$value, na.rm = TRUE)),
+          y = c(0, max(snotel_data$value, na.rm = TRUE)),
+          type = "scatter",
+          mode = "lines",
+          line = list(dash = "dash", color = "black"),
+          name = "1:1 Line"
+        ) %>%
+        layout(
+          title = "VIC vs SNOTEL SWE Comparison",
+          xaxis = list(title = "SNOTEL SWE (mm)"),
+          yaxis = list(title = "VIC SWE (mm)")
+        )
+    }
+  })
+  
+  output$swe_validation <- renderPlotly({
+    # Load and process data
+    snotel_data <- load_processed_data("snotel")
+    vic_data <- load_processed_data("vic")
+    
+    if (!is.null(snotel_data) && !is.null(vic_data)) {
+      # Calculate validation metrics
+      validation_data <- snotel_data %>%
+        left_join(vic_data, by = c("date", "station_id")) %>%
+        mutate(
+          error = vic_value - value,
+          abs_error = abs(error),
+          rel_error = error / value * 100
+        )
+      
+      # Create error distribution plot
+      plot_ly(
+        data = validation_data,
+        x = ~error,
+        type = "histogram",
+        nbinsx = 30
+      ) %>%
+        layout(
+          title = "VIC Model Error Distribution",
+          xaxis = list(title = "Error (mm)"),
+          yaxis = list(title = "Count")
+        )
+    }
+  })
+  
+  output$swe_stats_table <- renderDataTable({
+    # Load and process data
+    snotel_data <- load_processed_data("snotel")
+    vic_data <- load_processed_data("vic")
+    
+    if (!is.null(snotel_data) && !is.null(vic_data)) {
+      # Calculate statistics
+      stats <- snotel_data %>%
+        left_join(vic_data, by = c("date", "station_id")) %>%
+        summarise(
+          `Mean Error (mm)` = mean(vic_value - value, na.rm = TRUE),
+          `Mean Absolute Error (mm)` = mean(abs(vic_value - value), na.rm = TRUE),
+          `Root Mean Square Error (mm)` = sqrt(mean((vic_value - value)^2, na.rm = TRUE)),
+          `Correlation Coefficient` = cor(value, vic_value, use = "complete.obs"),
+          `Bias (%)` = mean((vic_value - value) / value * 100, na.rm = TRUE)
+        )
+      
+      # Format table
+      datatable(
+        stats,
+        options = list(
+          dom = 't',
+          pageLength = 5
+        )
+      )
+    }
+  })
+  
+  # April 1 SWE Anomalies Plot
+  output$april1_swe_anomalies_plot <- renderPlotly({
+    # Calculate April 1 SWE anomalies
+    april1_swe <- swe_data %>%
+      filter(month == 4, day == 1) %>%
+      group_by(year) %>%
+      summarise(mean_swe = mean(swe_value, na.rm = TRUE)) %>%
+      mutate(anomaly = mean_swe - mean(mean_swe, na.rm = TRUE))
+    
+    # Create the plot
+    plot_ly(april1_swe, x = ~year, y = ~anomaly, type = 'bar',
+            marker = list(color = ~ifelse(anomaly >= 0, 'rgb(0, 128, 255)', 'rgb(255, 0, 0)'))) %>%
+      layout(title = "April 1 SWE Anomalies",
+             xaxis = list(title = "Year"),
+             yaxis = list(title = "SWE Anomaly (mm)"),
+             showlegend = FALSE)
+  })
+  
+  # April 1 SWE Trends Plot
+  output$april1_swe_trends_plot <- renderPlotly({
+    # Calculate April 1 SWE trends
+    april1_swe <- swe_data %>%
+      filter(month == 4, day == 1) %>%
+      group_by(year) %>%
+      summarise(mean_swe = mean(swe_value, na.rm = TRUE))
+    
+    # Fit linear trend
+    trend <- lm(mean_swe ~ year, data = april1_swe)
+    
+    # Create the plot
+    plot_ly(april1_swe, x = ~year, y = ~mean_swe, type = 'scatter', mode = 'markers',
+            marker = list(color = 'rgb(0, 128, 255)')) %>%
+      add_lines(x = ~year, y = fitted(trend), line = list(color = 'rgb(255, 0, 0)')) %>%
+      layout(title = "April 1 SWE Trends",
+             xaxis = list(title = "Year"),
+             yaxis = list(title = "Mean SWE (mm)"))
   })
 }
 
