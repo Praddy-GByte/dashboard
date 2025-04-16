@@ -34,18 +34,26 @@ check_processed_data <- function(data_type, year = NULL) {
 
 # Function to load processed data
 load_processed_data <- function(data_type, year = NULL) {
-  processed_path <- file.path("data", paste0(data_type, "_processed"))
-  if (!is.null(year)) {
-    file_pattern <- paste0(".*", year, ".*\\.rds$")
-    file <- list.files(processed_path, pattern = file_pattern, full.names = TRUE)[1]
-  } else {
-    file <- list.files(processed_path, pattern = "\\.rds$", full.names = TRUE)[1]
+  base_path <- "data/processed"
+  if (data_type == "vic") {
+    if (!is.null(year)) {
+      file_path <- file.path(base_path, paste0("vic_", year, ".rds"))
+    } else {
+      file_path <- file.path(base_path, "vic_all.rds")
+    }
+  } else if (data_type == "smap") {
+    file_path <- file.path(base_path, "smap.rds")
+  } else if (data_type == "grace") {
+    file_path <- file.path(base_path, "grace.rds")
+  } else if (data_type == "snotel") {
+    file_path <- file.path(base_path, "snotel.rds")
   }
   
-  if (file.exists(file)) {
-    return(readRDS(file))
+  if (file.exists(file_path)) {
+    return(readRDS(file_path))
+  } else {
+    return(NULL)
   }
-  return(NULL)
 }
 
 # Function to save processed data
@@ -316,37 +324,21 @@ static_images <- list(
   combined = "/Users/praddy5/Desktop/Dashboard/images/combined_map.png"
 )
 
-# Function to load VIC data with optimization
+# Function to load VIC data
 load_vic_data <- function() {
-  # Check for optimized data first
-  optimized_file <- file.path("data_optimized", "VICOut2_compressed.nc")
-  if (file.exists(optimized_file)) {
-    nc_file <- nc_open(optimized_file)
-  } else {
-    nc_file <- nc_open("data/VICOut2.nc")
-  }
+  nc_file <- nc_open("data/VICOut2.nc")
   return(nc_file)
 }
 
-# Function to load GRACE data with optimization
-load_grace_data <- function() {
-  optimized_file <- file.path("data_optimized", "GRCTellus.JPL.200204_202401.GLO.RL06.1M.MSCNv03CRI_compressed.nc")
-  if (file.exists(optimized_file)) {
-    nc_file <- nc_open(optimized_file)
-  } else {
-    nc_file <- nc_open("data/GRCTellus.JPL.200204_202401.GLO.RL06.1M.MSCNv03CRI.nc")
-  }
-  return(nc_file)
-}
-
-# Function to load SMAP data with optimization
+# Function to load SMAP data
 load_smap_data <- function() {
-  optimized_file <- file.path("data_optimized", "SPL4SMGP.007_9km_aid0001_compressed.nc")
-  if (file.exists(optimized_file)) {
-    nc_file <- nc_open(optimized_file)
-  } else {
-    nc_file <- nc_open("data/SPL4SMGP.007_9km_aid0001.nc")
-  }
+  nc_file <- nc_open("data/SPL4SMGP.007_9km_aid0001.nc")
+  return(nc_file)
+}
+
+# Function to load GRACE data
+load_grace_data <- function() {
+  nc_file <- nc_open("data/GRCTellus.JPL.200204_202401.GLO.RL06.1M.MSCNv03CRI.nc")
   return(nc_file)
 }
 
@@ -548,16 +540,22 @@ ui <- dashboardPage(
     title = "Colorado River Basin Dashboard",
     titleWidth = 300,
     tags$li(class = "dropdown",
-      tags$img(src = "logos/nasa.png", height = "40px", 
-              style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+      tags$div(style = "display: inline-block; margin-right: 10px;",
+        tags$img(src = "logos/nasa.png", height = "40px", 
+                style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+      )
     ),
     tags$li(class = "dropdown",
-      tags$img(src = "logos/asu.jpg", height = "40px", 
-              style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+      tags$div(style = "display: inline-block; margin-right: 10px;",
+        tags$img(src = "logos/asu.jpg", height = "40px", 
+                style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+      )
     ),
     tags$li(class = "dropdown",
-      tags$img(src = "logos/cap.jpg", height = "40px", 
-              style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+      tags$div(style = "display: inline-block;",
+        tags$img(src = "logos/cap.jpg", height = "40px", 
+                style = "padding: 5px; border: 2px solid #FFC627; border-radius: 50%;")
+      )
     )
   ),
   
@@ -2441,49 +2439,42 @@ server <- function(input, output, session) {
   
   # Static image outputs with error handling
   output$basin_map <- renderUI({
-    img_path <- "/Users/praddy5/Desktop/Dashboard/images/colorado_river_basin_map.png"
+    img_path <- "images/colorado_river_basin_map.png"
     if (file.exists(img_path)) {
       div(class = "map-container",
-          tags$img(src = "images/colorado_river_basin_map.png", 
-                   alt = "Colorado River Basin Map",
-                   style = "width: 100%; height: auto; max-height: 800px; object-fit: contain; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"),
+          tags$img(src = img_path, 
+                  alt = "Colorado River Basin Map",
+                  style = "width: 100%; height: auto; max-height: 800px; object-fit: contain; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"),
           div(class = "map-caption",
               p("The Colorado River Basin spans across seven U.S. states, covering approximately 246,000 square miles."),
               p("Key features include Lake Powell and Lake Mead reservoirs.")
           )
       )
-    } else {
-      div(class = "alert alert-warning",
-          tags$h4("Map Preview"),
-          tags$p("The Colorado River Basin spans across seven U.S. states, covering approximately 246,000 square miles."),
-          tags$p("Key features include Lake Powell and Lake Mead reservoirs."),
-          style = "text-align: center; padding: 20px;"
-      )
     }
   })
   
   output$huc10_map <- renderUI({
-    img_path <- "/Users/praddy5/Desktop/Dashboard/images/huc10_map.png"
+    img_path <- "images/huc10_map.png"
     if (file.exists(img_path)) {
-      tags$img(src = "images/huc10_map.png",
-               alt = "HUC10 Map",
-               style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;")
+      tags$img(src = img_path,
+              alt = "HUC10 Map",
+              style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;")
     }
   })
   
   output$huc10_area <- renderUI({
-    img_path <- "/Users/praddy5/Desktop/Dashboard/images/huc10_area.png"
+    img_path <- "images/huc10_area.png"
     if (file.exists(img_path)) {
-      tags$img(src = "images/huc10_area.png",
+      tags$img(src = img_path,
                alt = "HUC10 Area",
                style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;")
     }
   })
   
   output$monthly_trends <- renderUI({
-    img_path <- "/Users/praddy5/Desktop/Dashboard/images/monthly_trends.png"
+    img_path <- "images/monthly_trends.png"
     if (file.exists(img_path)) {
-      tags$img(src = "images/monthly_trends.png",
+      tags$img(src = img_path,
                alt = "Monthly Trends",
                style = "width: 100%; height: auto; max-height: 600px; object-fit: contain;")
     }
